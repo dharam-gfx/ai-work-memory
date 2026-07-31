@@ -8,8 +8,8 @@ import { createClient } from '@supabase/supabase-js';
 // In Node (server.ts), they live in process.env.
 const isBrowser = typeof window !== 'undefined';
 
-const viteEnv = isBrowser ? (import.meta as any).env ?? {} : {};
-const nodeEnv = (!isBrowser && typeof process !== 'undefined') ? process.env : {};
+const viteEnv = isBrowser ? ( import.meta as any ).env ?? {} : {};
+const nodeEnv = ( !isBrowser && typeof process !== 'undefined' ) ? process.env : {};
 
 export const supabaseUrl =
   viteEnv.VITE_SUPABASE_URL ||
@@ -25,8 +25,8 @@ export const supabaseAnonKey =
   nodeEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
   '';
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+export const isSupabaseConfigured = Boolean( supabaseUrl && supabaseAnonKey );
 
 export const supabase: any = isSupabaseConfigured
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient( supabaseUrl, supabaseAnonKey )
   : null;
