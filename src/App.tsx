@@ -196,18 +196,18 @@ const AppContent: React.FC = () => {
 
   // User preferences — persisted per user in localStorage
   const prefsKey = `ai_work_memory_prefs_${userIdKey}`;
-  const [preferences, setPreferences] = useState(() => {
+  const [preferences, setPreferences] = useState( () => {
     try {
-      const saved = localStorage.getItem(prefsKey);
-      if (saved) return JSON.parse(saved);
+      const saved = localStorage.getItem( prefsKey );
+      if ( saved ) return JSON.parse( saved );
     } catch { /* fallback */ }
     return { strictGrounding: true, duplicatePrevention: true, realtimeSync: true };
-  });
+  } );
 
-  const updatePreference = (key: string, value: boolean) => {
+  const updatePreference = ( key: string, value: boolean ) => {
     const updated = { ...preferences, [key]: value };
-    setPreferences(updated);
-    localStorage.setItem(prefsKey, JSON.stringify(updated));
+    setPreferences( updated );
+    localStorage.setItem( prefsKey, JSON.stringify( updated ) );
   };
 
   // Guard dashboard access if signed out — wait for auth to finish loading first

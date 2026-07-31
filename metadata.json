@@ -1,6 +1,8 @@
 {
   "name": "AI Work Memory",
-  "description": "Universal AI personal knowledge assistant for RAG querying across PDFs, emails, notes, and images.",
+  "description": "Universal AI personal knowledge assistant for RAG querying across PDFs,JSON, emails, notes, and images.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
 }
