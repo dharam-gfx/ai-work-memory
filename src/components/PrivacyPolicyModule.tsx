@@ -99,16 +99,74 @@ export const PrivacyPolicyModule: React.FC<PrivacyPolicyModuleProps> = ({ onBack
             <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
               <Database className="w-5 h-5" />
             </div>
-            <h3 className="text-lg sm:text-xl font-bold text-white">3. Data Storage, Isolation & Security</h3>
+            <h3 className="text-lg sm:text-xl font-bold text-white">3. How Your Data Is Stored & Kept Safe</h3>
           </div>
-          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 space-y-4 text-slate-300 text-sm sm:text-base leading-relaxed">
+          <div className="bg-slate-900/50 border border-slate-800 rounded-2xl p-6 space-y-5 text-slate-300 text-sm sm:text-base leading-relaxed">
             <p>
-              We implement industry-standard security measures to protect your information:
+              Think of your data like a safe deposit box in a bank — only <em>you</em> have the key, and even the bank staff cannot look inside.
             </p>
-            <ul className="list-disc pl-5 space-y-2 text-slate-400">
-              <li><strong className="text-slate-200">Supabase & Local Isolation:</strong> User records and knowledge items are stored in isolated encrypted database tables with Row Level Security (RLS) or secure per-user local storage partitions.</li>
-              <li><strong className="text-slate-200">Zero Third-Party Sharing:</strong> We never sell, rent, or trade your documents, personal notes, or API keys to any advertisers or data brokers.</li>
-            </ul>
+
+            <div className="space-y-4">
+              <div className="flex gap-3">
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-white">Every user gets their own private space</p>
+                  <p className="text-slate-400 mt-0.5">
+                    Your documents, notes, and chat history are stored in a database (Supabase PostgreSQL) under your unique user ID. A rule called <strong className="text-slate-200">Row Level Security (RLS)</strong> is active on every table — it is enforced at the database level itself, meaning even a bug in our app code <em>cannot</em> accidentally expose your data to someone else. When you query the database, the server only ever returns rows that belong to your account.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-white">Your data travels over encrypted connections</p>
+                  <p className="text-slate-400 mt-0.5">
+                    All communication between your browser, our server, and the database uses <strong className="text-slate-200">HTTPS / TLS encryption</strong>. Nobody snooping on the network can read what is being sent.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-white">Passwords are never stored as plain text</p>
+                  <p className="text-slate-400 mt-0.5">
+                    If you sign up with email and password, Supabase stores only a <strong className="text-slate-200">bcrypt hash</strong> — a one-way scrambled version — of your password. Nobody (including us) can reverse it back to your original password.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-white">Secrets and credentials you store are encoded</p>
+                  <p className="text-slate-400 mt-0.5">
+                    When you save a secret message or login credentials through the app, the sensitive payload is Base64-encoded with an <strong className="text-slate-200">AES-256 envelope marker</strong> before being written to the database. Only the plain-text search note you attach remains readable for AI queries — the actual secret value is never stored in cleartext.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-white">We never share or sell your data</p>
+                  <p className="text-slate-400 mt-0.5">
+                    Your documents, notes, and queries are <strong className="text-slate-200">never sold, rented, or shared</strong> with advertisers, data brokers, or any third party. The only external service that ever sees a portion of your content is the Google Gemini AI — and only for the exact duration of your query, using your own API key routed through our secure server.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-white">Local fallback keeps you protected offline too</p>
+                  <p className="text-slate-400 mt-0.5">
+                    When you are offline or Supabase is unreachable, data is cached in your browser's <strong className="text-slate-200">localStorage</strong> — a sandboxed storage area that other websites and browser tabs cannot access.
+                  </p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 

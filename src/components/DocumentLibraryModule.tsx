@@ -271,10 +271,24 @@ export const DocumentLibraryModule: React.FC<DocumentLibraryModuleProps> = ({
               </div>
 
               <div>
-                <h4 className="text-xs font-semibold text-slate-400 mb-1">Extracted Text Content:</h4>
-                <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 font-mono leading-relaxed whitespace-pre-wrap max-h-72 overflow-y-auto">
-                  {inspectDoc.rawText}
-                </div>
+                <h4 className="text-xs font-semibold text-slate-400 mb-1">
+                  {inspectDoc.fileType === 'image' ? 'Image Preview:' : 'Extracted Text Content:'}
+                </h4>
+                {inspectDoc.fileType === 'image' && inspectDoc.rawText.trimStart().startsWith('data:') ? (
+                  <div className="rounded-xl overflow-hidden border border-slate-800 bg-slate-950 flex items-center justify-center p-2 max-h-72">
+                    <img
+                      src={inspectDoc.rawText}
+                      alt={inspectDoc.title}
+                      className="max-h-64 max-w-full object-contain rounded-lg"
+                    />
+                  </div>
+                ) : (
+                  <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 text-xs text-slate-300 font-mono leading-relaxed whitespace-pre-wrap max-h-72 overflow-y-auto">
+                    {inspectDoc.rawText.trimStart().startsWith('data:')
+                      ? `[Binary ${inspectDoc.fileType} file — text extraction requires AI processing on upload]`
+                      : inspectDoc.rawText || '(No extracted text available)'}
+                  </div>
+                )}
               </div>
             </div>
 

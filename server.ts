@@ -1,6 +1,6 @@
 import express from 'express';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 
@@ -10,6 +10,7 @@ const __filename = fileURLToPath( import.meta.url );
 const __dirname = path.dirname( __filename );
 
 const app = express();
+app.disable( 'x-powered-by' );
 const PORT = 3000;
 
 app.use( express.json( { limit: '50mb' } ) );
@@ -156,6 +157,7 @@ app.post( '/api/rag/query', async ( req, res ) => {
     let aiResponseText = '';
 
     if ( ai ) {
+      const roleLine = roleContext ? `\nSelected Role Perspective: ${roleContext}` : '';
       const systemInstruction = `You are "AI Work Memory" - a universal personal knowledge assistant.
 Your job is to answer user queries based on their uploaded documents, notes, emails, and receipts.
 
@@ -165,8 +167,7 @@ CRITICAL INSTRUCTIONS:
 3. Be professional, friendly, and precise.
 ${strictGrounding
   ? '4. STRICT MODE: Only use information from the provided context. If the information is not present, explicitly say so — do not invent or infer beyond the documents.'
-  : '4. You may supplement with general knowledge if the context is insufficient, but always prioritize the provided documents.'}
-${roleContext ? `Selected Role Perspective: ${roleContext}` : ''}`;
+  : '4. You may supplement with general knowledge if the context is insufficient, but always prioritize the provided documents.'}${roleLine}`;
 
       const userPrompt = `GROUNDING CONTEXT FROM RETRIEVED KNOWLEDGE BASE:
 ${contextSnippet || 'No relevant document chunks found.'}
@@ -186,13 +187,10 @@ Please provide a clear, accurate, and structured answer:`;
       } );
 
       aiResponseText = response.text || 'I analyzed your documents but could not format a response.';
+    } else if ( citations.length > 0 ) {
+      aiResponseText = `Based on your ingested files (${citations.map( c => c.docTitle ).join( ', ' )}):\n\n${citations[0].snippet.substring( 0, 300 )}...`;
     } else {
-      // Fallback response synthesis when Gemini key is not configured
-      if ( citations.length > 0 ) {
-        aiResponseText = `Based on your ingested files (${citations.map( c => c.docTitle ).join( ', ' )}):\n\n${citations[0].snippet.substring( 0, 300 )}...`;
-      } else {
-        aiResponseText = `I couldn't find specific documents matching "${query}". Try uploading relevant PDFs, notes, or emails first!`;
-      }
+      aiResponseText = `I couldn't find specific documents matching "${query}". Try uploading relevant PDFs, notes, or emails first!`;
     }
 
     res.json( {
@@ -255,26 +253,21 @@ function performRetrieval( query: string, docs: any[] ) {
 }
 
 // Start Server and Mount Vite Middleware
-async function startServer() {
-  // Vite Middleware for development
-  if ( process.env.NODE_ENV !== 'production' ) {
-    const { createServer: createViteServer } = await import( 'vite' );
-    const vite = await createViteServer( {
-      server: { middlewareMode: true },
-      appType: 'spa',
-    } );
-    app.use( vite.middlewares );
-  } else {
-    const distPath = path.join( process.cwd(), 'dist' );
-    app.use( express.static( distPath ) );
-    app.get( '*', ( req, res ) => {
-      res.sendFile( path.join( distPath, 'index.html' ) );
-    } );
-  }
-
-  app.listen( PORT, '0.0.0.0', () => {
-    console.log( `AI Work Memory server listening on http://0.0.0.0:${PORT}` );
+if ( process.env.NODE_ENV !== 'production' ) {
+  const { createServer: createViteServer } = await import( 'vite' );
+  const vite = await createViteServer( {
+    server: { middlewareMode: true },
+    appType: 'spa',
+  } );
+  app.use( vite.middlewares );
+} else {
+  const distPath = path.join( process.cwd(), 'dist' );
+  app.use( express.static( distPath ) );
+  app.get( '*', ( req, res ) => {
+    res.sendFile( path.join( distPath, 'index.html' ) );
   } );
 }
 
-startServer();
+app.listen( PORT, '0.0.0.0', () => {
+  console.log( `AI Work Memory server listening on http://0.0.0.0:${PORT}` );
+} );

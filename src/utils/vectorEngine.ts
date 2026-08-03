@@ -144,7 +144,19 @@ export function retrieveRelevantChunks(
   }[] = [];
 
   allDocuments.forEach( doc => {
-    const textChunks = chunkText( doc.rawText );
+    // Replace binary data URLs with a searchable label based on actual file type
+    const isBinaryDataUrl = doc.rawText.trimStart().startsWith( 'data:' );
+    const binaryLabel = isBinaryDataUrl
+      ? ( doc.fileType === 'image'
+        ? `[Image: ${doc.title}] ${doc.summary || ''}`
+        : doc.fileType === 'pdf'
+          ? `[PDF: ${doc.title}] ${doc.summary || ''}`
+          : doc.fileType === 'excel'
+            ? `[Spreadsheet: ${doc.title}] ${doc.summary || ''}`
+            : `[${doc.fileType} file: ${doc.title}] ${doc.summary || ''}` ).trim()
+      : null;
+    const rawForChunking = binaryLabel ?? doc.rawText;
+    const textChunks = chunkText( rawForChunking );
     textChunks.forEach( ( chunkTextStr, idx ) => {
       const chunkVector = generateLocalEmbedding( chunkTextStr );
       const vecScore = cosineSimilarity( queryVector, chunkVector );

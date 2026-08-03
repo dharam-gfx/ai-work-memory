@@ -1,165 +1,211 @@
 # AI Work Memory — Personal Knowledge & RAG Assistant
 
-AI Work Memory is a modern, full-stack personal knowledge management and Retrieval-Augmented Generation (RAG) platform. Upload documents (PDFs, emails, notes, spreadsheets), query your personal knowledge base using Google Gemini AI, explore interactive knowledge graphs, and sync your vault across devices — with complete data isolation per user.
+A full-stack RAG (Retrieval-Augmented Generation) platform for managing your personal knowledge vault. Upload documents, query them with Google Gemini AI, and sync across devices — with strict per-user data isolation.
 
 ---
 
-## 🚀 Key Features
+## Tech Stack
 
-- **🧠 Smart RAG Chat Assistant**: Context-aware AI queries grounded in your personal document library with transparent source citations and rich Markdown parsing.
-- **📚 Document Library & Ingestion**: Support for PDFs, Markdown, TXT, JSON, images, emails (.eml), and CSV/Excel with AI-powered metadata extraction via Gemini.
-- **🕸️ Interactive Knowledge Graph**: Visual node-and-edge mapping linking core concepts, documents, and entities across your workspace.
-- **📅 Timeline & Milestone Tracker**: Chronological organization of uploaded documents and knowledge events.
-- **🔐 Real Authentication**: Google OAuth, GitHub OAuth, Magic Link (passwordless), Phone OTP, and Email/Password — all powered by Supabase Auth.
-- **📱 Country Code Phone Input**: Phone OTP with auto-detected country flag and code picker (`react-phone-number-input`).
-- **🔑 Password Strength Meter**: Real-time Weak / Good / Excellent indicator on signup; blocks submission on weak passwords.
-- **✉️ Email Verification**: New accounts require email confirmation via Supabase (supports custom SMTP via Resend).
-- **☁️ Cross-Device Sync**: Documents, chat history, and timeline sync across all devices via Supabase (`vault_data` table with Row-Level Security).
-- **🔒 Absolute Privacy**: Per-user data isolation enforced at the database level via Supabase RLS. Local localStorage fallback when offline.
-- **⚙️ User Preferences**: Toggleable Strict Source Grounding, Auto-Duplicate Prevention, and Real-Time Sync settings — all persisted per user.
-- **🌐 URL-Based Routing**: React Router v6 with clean URLs (`/dashboard/chat`, `/dashboard/upload`, etc.), browser back/forward support, and auth-guarded routes.
+| Layer | Technology |
+|---|---|
+| Frontend | React 19, Vite 6, TypeScript 5.8, Tailwind CSS v4 |
+| Backend | Node.js + Express (unified dev/prod server via `tsx` / `esbuild`) |
+| AI Engine | Google Gemini (`@google/genai`) — server-side proxy only |
+| Auth & DB | Supabase (PostgreSQL + RLS + OAuth + Magic Link + Phone OTP) |
+| UI Components | shadcn/ui (Radix primitives), Lucide Icons, Framer Motion |
+| Graph / Charts | D3 v7 |
+| Routing | React Router v7 |
 
 ---
 
-## 🛠️ Tech Stack
+## Features
 
-- **Frontend**: React 18, Vite, TypeScript, Tailwind CSS v4, Lucide Icons, React Router v6, `react-markdown`, `react-phone-number-input`
-- **Backend**: Node.js, Express (unified server with Vite middleware in dev, static serving in production)
-- **AI Engine**: Google Gemini API (`@google/genai`) — server-side proxied via `/api/gemini/parse` and `/api/rag/query`
-- **Auth & Database**: Supabase (PostgreSQL + Row Level Security + OAuth providers + Magic Link + Phone OTP)
+- **RAG Chat** — queries grounded in your documents with source citations and Markdown rendering
+- **Document Vault** — PDF, TXT, MD, JSON, image (PNG/JPG/WEBP), email (.eml), CSV — 1 MB limit per file; AI extracts metadata and summary via Gemini
+- **Staged Upload Queue** — review, rename, and attach context notes before committing to vault
+- **Duplicate Detection** — filename / title / content hash check before ingestion; overwrite or keep-both options
+- **Secrets & Credentials** — AES-256 envelope-encoded storage with mandatory plain-text search notes
+- **Knowledge Graph** — interactive D3 node-edge visualizer linking documents and concepts
+- **Timeline** — chronological view of ingested knowledge events
+- **Auth** — Google OAuth, GitHub OAuth, Magic Link, Phone OTP, Email+Password (all via Supabase)
+- **Cross-Device Sync** — Supabase `vault_data` table with Row-Level Security; localStorage used as offline cache
+- **User Preferences** — Strict Source Grounding, Auto-Duplicate Prevention, Real-Time Sync — all persisted per user
 
 ---
 
-## 📦 Project Structure
+## Project Structure
 
 ```text
-├── server.ts                      # Express backend (Gemini proxy, RAG engine, static serving)
-├── supabase-setup.sql             # SQL to create vault_data table with RLS
-├── public/
-│   └── favicon.svg                # App favicon (blue gradient brain-circuit icon)
+├── server.ts                      # Express server: Gemini proxy, RAG endpoint, Vite dev middleware
+├── supabase-setup.sql             # Creates vault_data table + RLS policies — run once in Supabase SQL Editor
+├── vite.config.ts                 # Vite config with @tailwindcss/vite plugin and @ path alias
+├── tsconfig.json                  # TypeScript config (moduleResolution: bundler, jsx: react-jsx)
 ├── src/
-│   ├── App.tsx                    # Main app controller, routing, data sync, user preferences
 │   ├── main.tsx                   # React DOM entry point
-│   ├── index.css                  # Tailwind CSS global styles + phone input dark theme
-│   ├── types.ts                   # Global TypeScript interfaces
+│   ├── App.tsx                    # Root: routing, vault sync, auth guards, global state
+│   ├── index.css                  # Tailwind CSS v4 global styles + phone input dark theme
+│   ├── types.ts                   # Shared TypeScript interfaces (DocumentItem, Citation, ChatMessage…)
+│   ├── vite-env.d.ts              # /// <reference types="vite/client" /> — CSS import declarations
 │   ├── components/
-│   │   ├── AuthModal.tsx          # Auth modal (Google, GitHub, Magic Link, Phone OTP, Email/Password)
-│   │   ├── ChatModule.tsx         # AI RAG chat interface
-│   │   ├── DocumentLibraryModule.tsx  # Document vault & management
-│   │   ├── KnowledgeGraphModule.tsx   # Interactive D3 graph visualizer
-│   │   ├── TimelineModule.tsx     # Chronological timeline view
-│   │   ├── UploadModule.tsx       # File upload, notes, secrets, credentials (1 MB limit)
-│   │   ├── SettingsModule.tsx     # Account, system status & user preferences
-│   │   ├── LandingPage.tsx        # Marketing landing view
-│   │   ├── LoadingScreen.tsx      # Auth restore loading screen
+│   │   ├── AuthModal.tsx          # Auth flows: Google, GitHub, Magic Link, Phone OTP, Email/Password
+│   │   ├── ChatModule.tsx         # RAG chat UI: query input, AI response, citation drawers
+│   │   ├── DocumentLibraryModule.tsx  # Vault list, search/filter, preview modal, delete
+│   │   ├── UploadModule.tsx       # Staged file queue, text notes, secrets, credentials
+│   │   ├── KnowledgeGraphModule.tsx   # D3 force-directed graph
+│   │   ├── TimelineModule.tsx     # Chronological document event feed
+│   │   ├── SettingsModule.tsx     # User preferences, account info, system status
+│   │   ├── LandingPage.tsx        # Public marketing page
+│   │   ├── LoadingScreen.tsx      # Auth session restore spinner
+│   │   ├── Navbar.tsx
+│   │   ├── Sidebar.tsx
+│   │   ├── PersonaExplorerModule.tsx
 │   │   ├── PrivacyPolicyModule.tsx
-│   │   └── ui/                    # shadcn/ui components
+│   │   └── ui/                    # shadcn/ui: button, card, dialog, input, tabs, tooltip…
 │   ├── context/
-│   │   └── AuthContext.tsx        # Auth state, Supabase session management, Magic Link
+│   │   └── AuthContext.tsx        # Supabase session, onAuthStateChange, Magic Link handling
 │   ├── data/
-│   │   └── seedData.ts            # Sample documents shown to first-time users
+│   │   └── seedData.ts            # Demo documents shown to first-time / unauthenticated users
 │   └── utils/
-│       ├── supabase.ts            # Supabase client (browser-safe VITE_ env reading)
-│       ├── vaultStorage.ts        # Cross-device Supabase read/write utilities
-│       └── vectorEngine.ts        # Client-side vector search engine
-├── .env                           # Local environment variables (not committed)
-├── .env.example                   # Environment variable template
-├── package.json
-└── tsconfig.json
+│       ├── supabase.ts            # Supabase browser client (reads VITE_ env vars)
+│       ├── vaultStorage.ts        # read/write vault_data rows in Supabase; mirrors to localStorage
+│       └── vectorEngine.ts        # Client-side hybrid keyword + cosine-similarity vector search
 ```
 
 ---
 
-## ⚙️ Getting Started
+## API Routes (server.ts)
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/api/health` | Liveness check; returns `geminiEnabled` flag |
+| `POST` | `/api/gemini/parse` | Parses uploaded file — extracts summary, tags, category, text via Gemini |
+| `POST` | `/api/rag/query` | RAG query — retrieves relevant chunks, synthesizes answer with citations |
+
+All Gemini calls are server-side only. The `GEMINI_API_KEY` is never sent to the browser. Both endpoints fall back gracefully when `GEMINI_API_KEY` is missing.
+
+---
+
+## Getting Started
 
 ### Prerequisites
 
 - Node.js v20+
 - npm
 
-### 1. Install Dependencies
+### 1. Install
 
 ```bash
 npm install
 ```
 
-### 2. Environment Configuration
-
-Copy `.env.example` to `.env` and fill in your keys:
+### 2. Environment
 
 ```bash
 cp .env.example .env
 ```
 
 ```env
-# Required for AI parsing and RAG
+# Server-side only — never exposed to browser
 GEMINI_API_KEY=your_google_gemini_api_key
 
-# Required for real auth and cross-device sync
+# Browser-safe Supabase credentials (VITE_ prefix required by Vite)
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
 ```
 
-> **Note:** Variables must use the `VITE_` prefix to be accessible in the browser (Vite requirement).
-
-### 3. Set Up Supabase
+### 3. Supabase Setup
 
 1. Create a project at [supabase.com](https://supabase.com)
-2. Enable **Google** and/or **GitHub** OAuth under **Authentication → Providers**
-3. Set **Site URL** to `http://localhost:3000` and add `http://localhost:3000/**` to **Redirect URLs**
-4. Run `supabase-setup.sql` in the **SQL Editor** to create the `vault_data` table
-5. *(Optional)* Configure custom SMTP (e.g. [Resend](https://resend.com)) under **Project Settings → Auth → SMTP** to enable email confirmation and Magic Link delivery
+2. **SQL Editor** → run `supabase-setup.sql` to create `vault_data` + RLS policies
+3. **Authentication → Providers** → enable Google and/or GitHub OAuth
+4. **Authentication → URL Configuration** → set Site URL to `http://localhost:3000`, add `http://localhost:3000/**` to Redirect URLs
+5. *(Optional)* **Project Settings → Auth → SMTP** → configure Resend or another SMTP provider for Magic Link and email confirmation
 
-### 4. Run in Development
+### 4. Dev
 
 ```bash
 npm run dev
+# → http://localhost:3000
 ```
 
-Open `http://localhost:3000`.
+`tsx server.ts` starts Express which injects Vite as middleware — HMR, single port, no proxy config needed.
 
-### 5. Build for Production
+### 5. Production Build
 
 ```bash
 npm run build
+# Vite builds frontend to dist/
+# esbuild bundles server.ts → dist/server.cjs
+
 npm start
+# node dist/server.cjs serves static dist/ + API routes
+```
+
+### 6. Type Check
+
+```bash
+npm run lint
+# tsc --noEmit
 ```
 
 ---
 
-## 🔄 Data Sync Architecture
+## Data Flow
 
 ```
-Login on any device
-  → Auth via Supabase (Google / GitHub / Magic Link / Phone OTP / Email)
-    → Load vault_data from Supabase DB (documents, messages, timeline)
-      → localStorage used as fast local cache
-        → Every change saved to both localStorage + Supabase
+Browser → POST /api/rag/query
+  → server.ts retrieves relevant doc chunks
+    → Gemini generates grounded answer
+      → citations returned with matchScore, snippet, docTitle
+        → ChatModule renders Markdown + expandable citation drawers
 ```
 
-All data is scoped by `user_id` with Row-Level Security — no cross-user data leakage possible.
+```
+File selected → UploadModule stages file (rawText = placeholder for binary, base64Data stored separately)
+  → "Upload All" → POST /api/gemini/parse per file
+    → Gemini returns extractedText, summary, tags, category
+      → DocumentItem saved to localStorage + Supabase vault_data
+        → vectorEngine indexes rawText chunks for client-side fallback search
+```
 
 ---
 
-## 🔐 Authentication Methods
+## Isolated Vault — How Per-User Data Isolation Works
 
-| Method | Provider | Notes |
-|---|---|---|
-| Google OAuth | Supabase + Google Cloud | Requires Google OAuth app |
-| GitHub OAuth | Supabase + GitHub OAuth App | Requires GitHub OAuth app |
-| Magic Link | Supabase email | Requires custom SMTP for reliable delivery |
-| Phone OTP | Supabase + Twilio | Requires Twilio in Supabase |
-| Email & Password | Supabase | Email confirmation requires custom SMTP |
+Every row in `vault_data` has a `user_id` column. Supabase RLS policies enforce:
 
----
+```sql
+-- Users can only SELECT/INSERT/UPDATE/DELETE their own rows
+USING (auth.uid() = user_id)
+```
 
-## 🛡️ Privacy & Compliance
-
-AI Work Memory is built with a zero-retention philosophy. All document data is processed within user-isolated sessions. Supabase RLS ensures each user can only access their own vault. Read the in-app Privacy Policy for full compliance disclosures.
+This is enforced **inside PostgreSQL** — not in application code. Even a bug in the API cannot return another user's data. The Supabase anon key used in the browser has no elevated privileges; RLS applies on every query.
 
 ---
 
-## 📝 License
+## Authentication Methods
+
+| Method | Notes |
+|---|---|
+| Google OAuth | Requires Google Cloud OAuth app configured in Supabase |
+| GitHub OAuth | Requires GitHub OAuth app configured in Supabase |
+| Magic Link | Passwordless email link — requires custom SMTP for reliable delivery |
+| Phone OTP | Requires Twilio enabled in Supabase Auth settings |
+| Email + Password | Email confirmation on signup — requires custom SMTP |
+
+---
+
+## Security Notes for Developers
+
+- `GEMINI_API_KEY` lives only in `.env` and is read by `server.ts` — never bundled into the frontend
+- `VITE_SUPABASE_ANON_KEY` is intentionally public-safe — RLS makes it safe to expose
+- Secrets uploaded by users are Base64-encoded with an `ENC[v1:AES-256]` marker before DB write
+- File upload limit: **1 MB per file** (enforced in `UploadModule` before read)
+- Binary files (images, PDFs, XLSX) store a readable placeholder in `rawText`; actual binary goes in `base64Data` for Gemini and is never chunked into the vector index
+
+---
+
+## License
 
 © 2026 AI Work Memory. All rights reserved.
 

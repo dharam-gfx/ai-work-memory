@@ -147,7 +147,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     }
   };
 
-  const handlePhoneSubmit = async (e: React.FormEvent) => {
+  const handlePhoneSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -176,7 +176,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
     setIsSubmitting(false);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -266,7 +266,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
               <div className="p-3.5 sm:p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold text-sm sm:text-base shrink-0 overflow-hidden">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-linear-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold text-sm sm:text-base shrink-0 overflow-hidden">
                       {user.avatarUrl ? (
                         <img src={user.avatarUrl} alt={user.fullName || user.email} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : userInitial}
@@ -427,9 +427,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
               {/* Divider */}
               <div className="relative flex py-1 items-center">
-                <div className="flex-grow border-t border-slate-800"></div>
-                <span className="flex-shrink mx-3 text-[10px] uppercase tracking-wider text-slate-500 font-medium">Or continue with</span>
-                <div className="flex-grow border-t border-slate-800"></div>
+                <div className="grow border-t border-slate-800"></div>
+                <span className="shrink mx-3 text-[10px] uppercase tracking-wider text-slate-500 font-medium">Or continue with</span>
+                <div className="grow border-t border-slate-800"></div>
               </div>
 
               {/* Auth Method Selector */}
@@ -481,8 +481,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
 
                   {mode === 'signup' && (
                     <div>
-                      <label className="text-xs font-semibold text-slate-300 mb-1.5 block">Full Name</label>
+                      <label htmlFor="auth-fullname" className="text-xs font-semibold text-slate-300 mb-1.5 block">Full Name</label>
                       <input
+                        id="auth-fullname"
                         type="text"
                         placeholder="e.g. Alex Rivera"
                         value={fullName}
@@ -493,10 +494,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   )}
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 mb-1.5 block">Email Address</label>
+                    <label htmlFor="auth-email" className="text-xs font-semibold text-slate-300 mb-1.5 block">Email Address</label>
                     <div className="relative">
                       <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
+                        id="auth-email"
                         type="email"
                         required
                         placeholder="you@company.com"
@@ -508,10 +510,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 mb-1.5 block">Password</label>
+                    <label htmlFor="auth-password" className="text-xs font-semibold text-slate-300 mb-1.5 block">Password</label>
                     <div className="relative">
                       <Lock className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
+                        id="auth-password"
                         type={showPassword ? 'text' : 'password'}
                         required
                         minLength={6}
@@ -580,10 +583,11 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   <form onSubmit={handleMagicLink} className="space-y-4">
                     <p className="text-xs text-slate-400">Enter your email and we'll send you a one-click sign-in link. No password required.</p>
                     <div>
-                      <label className="text-xs font-semibold text-slate-300 mb-1.5 block">Email Address</label>
+                      <label htmlFor="magic-email" className="text-xs font-semibold text-slate-300 mb-1.5 block">Email Address</label>
                       <div className="relative">
                         <Mail className="w-4 h-4 text-slate-500 absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
+                          id="magic-email"
                           type="email"
                           required
                           placeholder="you@company.com"
@@ -611,8 +615,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 mb-1.5 block">Full Name</label>
+                    <label htmlFor="phone-fullname" className="text-xs font-semibold text-slate-300 mb-1.5 block">Full Name</label>
                     <input
+                      id="phone-fullname"
                       type="text"
                       required
                       placeholder="e.g. Jordan Lee"
@@ -623,8 +628,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   </div>
 
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 mb-1.5 block">Phone Number</label>
+                    <label htmlFor="phone-number" className="text-xs font-semibold text-slate-300 mb-1.5 block">Phone Number</label>
                     <PhoneInput
+                      id="phone-number"
                       international
                       defaultCountry="IN"
                       value={phoneNumber}
@@ -641,7 +647,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                   {requiresOtp && (
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-xs font-semibold text-slate-300">Verification Code (OTP)</label>
+                        <label htmlFor="otp-code" className="text-xs font-semibold text-slate-300">Verification Code (OTP)</label>
                         <button
                           type="button"
                           onClick={() => setRequiresOtp(false)}
@@ -658,6 +664,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                         value={otpCode}
                         onChange={(e) => setOtpCode(e.target.value)}
                         className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-center tracking-widest font-mono text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500"
+                        id="otp-code"
                       />
                     </div>
                   )}

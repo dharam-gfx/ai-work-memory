@@ -20,8 +20,8 @@ import { DocumentItem, FileType } from '../types';
 import { Progress } from '@/components/ui/progress';
 
 interface UploadModuleProps {
-  onDocumentAdded: (doc: DocumentItem) => void;
-  onDocumentOverwrite?: (doc: DocumentItem) => void;
+  onDocumentAdded: ( doc: DocumentItem ) => void;
+  onDocumentOverwrite?: ( doc: DocumentItem ) => void;
   ingestionQueue: DocumentItem[];
   duplicatePrevention?: boolean;
 }
@@ -59,82 +59,91 @@ export interface StagedFileItem {
   customMessage: string;
 }
 
-export const UploadModule: React.FC<UploadModuleProps> = ({
+export const UploadModule: React.FC<UploadModuleProps> = ( {
   onDocumentAdded,
   onDocumentOverwrite,
   ingestionQueue,
   duplicatePrevention = true,
-}) => {
-  const [activeUploadTab, setActiveUploadTab] = useState<'file' | 'note' | 'secret' | 'credentials'>('file');
-  const [pastedText, setPastedText] = useState('');
-  const [docTitle, setDocTitle] = useState('');
-  const [customMsg, setCustomMsg] = useState('');
-  const [fileCategory, setFileCategory] = useState('Work & Ops');
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [dragActive, setDragActive] = useState(false);
-  
+} ) => {
+  const [activeUploadTab, setActiveUploadTab] = useState<'file' | 'note' | 'secret' | 'credentials'>( 'file' );
+  const [pastedText, setPastedText] = useState( '' );
+  const [docTitle, setDocTitle] = useState( '' );
+  const [customMsg, setCustomMsg] = useState( '' );
+  const [fileCategory, setFileCategory] = useState( 'Work & Ops' );
+  const [isProcessing, setIsProcessing] = useState( false );
+  const [dragActive, setDragActive] = useState( false );
+
   // Staged Files Queue before upload
-  const [stagedFiles, setStagedFiles] = useState<StagedFileItem[]>([]);
+  const [stagedFiles, setStagedFiles] = useState<StagedFileItem[]>( [] );
 
   // Progress & Notification State
-  const [uploadStage, setUploadStage] = useState<UploadStage | null>(null);
-  const [duplicateMatch, setDuplicateMatch] = useState<DuplicateMatch | null>(null);
-  const [successToast, setSuccessToast] = useState<string | null>(null);
-  const [errorToast, setErrorToast] = useState<string | null>(null);
+  const [uploadStage, setUploadStage] = useState<UploadStage | null>( null );
+  const [duplicateMatch, setDuplicateMatch] = useState<DuplicateMatch | null>( null );
+  const [successToast, setSuccessToast] = useState<string | null>( null );
+  const [errorToast, setErrorToast] = useState<string | null>( null );
 
   const categories = ['Work & Ops', 'Legal', 'Healthcare', 'Academic', 'Business', 'Home & Personal'];
 
   // Handle Multi-file Upload / Selection (Staging)
-  const handleFileUpload = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      await stageSingleFile(file);
+  const handleFileUpload = async ( files: FileList | null ) => {
+    if ( !files || files.length === 0 ) return;
+
+    for ( const file of Array.from( files ) ) {
+      await stageSingleFile( file );
     }
   };
 
-  const stageSingleFile = async (file: File) => {
-    if (file.size > 1 * 1024 * 1024) {
-      showError(`"${file.name}" exceeds the 1 MB limit (${(file.size / 1024 / 1024).toFixed(2)} MB). Please upload a smaller file.`);
+  const stageSingleFile = async ( file: File ) => {
+    if ( file.size > 1 * 1024 * 1024 ) {
+      showError( `"${file.name}" exceeds the 1 MB limit (${( file.size / 1024 / 1024 ).toFixed( 2 )} MB). Please upload a smaller file.` );
       return;
     }
 
-    const fileExt = file.name.split('.').pop()?.toLowerCase();
+    const fileExt = file.name.split( '.' ).pop()?.toLowerCase();
     let detectedType: FileType = 'pdf';
-    if (fileExt === 'eml' || fileExt === 'msg') detectedType = 'email';
-    else if (fileExt === 'txt' || fileExt === 'md' || fileExt === 'json') detectedType = 'note';
-    else if (['png', 'jpg', 'jpeg', 'webp'].includes(fileExt || '')) detectedType = 'image';
-    else if (['xlsx', 'csv'].includes(fileExt || '')) detectedType = 'excel';
+    if ( fileExt === 'eml' || fileExt === 'msg' ) detectedType = 'email';
+    else if ( fileExt === 'txt' || fileExt === 'md' || fileExt === 'json' ) detectedType = 'note';
+    else if ( ['png', 'jpg', 'jpeg', 'webp'].includes( fileExt || '' ) ) detectedType = 'image';
+    else if ( ['xlsx', 'csv'].includes( fileExt || '' ) ) detectedType = 'excel';
 
-    return new Promise<void>((resolve) => {
+    return new Promise<void>( ( resolve ) => {
+      const isBinary = ['png', 'jpg', 'jpeg', 'webp', 'pdf', 'xlsx'].includes( fileExt || '' );
       const reader = new FileReader();
-      reader.onload = (e) => {
-        let textContent = (e.target?.result as string) || `Uploaded file ${file.name} content`;
-        
-        if (fileExt === 'json') {
+      reader.onload = ( e ) => {
+        let textContent = ( e.target?.result as string ) || `Uploaded file ${file.name} content`;
+
+        if ( fileExt === 'json' ) {
           try {
-            const parsed = JSON.parse(textContent);
-            textContent = JSON.stringify(parsed, null, 2);
-          } catch (err) {
-            // Keep raw text if invalid json
+            const parsed = JSON.parse( textContent );
+            textContent = JSON.stringify( parsed, null, 2 );
+          } catch {
+            // Keep raw text if invalid JSON
           }
         }
-        
+
         let base64Data = '';
-        if (['png', 'jpg', 'jpeg', 'webp', 'pdf'].includes(fileExt || '')) {
-          base64Data = textContent.split(',')[1] || '';
+        let rawTextForStorage = textContent;
+        if ( ['png', 'jpg', 'jpeg', 'webp'].includes( fileExt || '' ) ) {
+          base64Data = textContent.split( ',' )[1] || '';
+          // Readable placeholder; Gemini extractedText will replace this on upload
+          rawTextForStorage = `[Image file: ${file.name}]`;
+        } else if ( fileExt === 'pdf' ) {
+          base64Data = textContent.split( ',' )[1] || '';
+          rawTextForStorage = `[PDF file: ${file.name} — text will be extracted by AI on upload]`;
+        } else if ( fileExt === 'xlsx' ) {
+          base64Data = textContent.split( ',' )[1] || '';
+          rawTextForStorage = `[Excel spreadsheet: ${file.name} — data will be extracted by AI on upload]`;
         }
 
-        const title = file.name.replace(/\.[^/.]+$/, '');
+        const title = file.name.replace( /\.[^/.]+$/, '' );
         const filename = file.name;
 
         const newItem: StagedFileItem = {
-          id: `stage-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+          id: crypto.randomUUID(),
           title,
           filename,
           fileType: detectedType,
-          rawText: textContent,
+          rawText: rawTextForStorage,
           sizeBytes: file.size,
           base64Data,
           mimeType: file.type,
@@ -142,28 +151,32 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
           customMessage: '',
         };
 
-        setStagedFiles(prev => [newItem, ...prev]);
-        showToast(`Staged "${title}" successfully. Ready to upload!`);
+        setStagedFiles( prev => [newItem, ...prev] );
+        showToast( `Staged "${title}" successfully. Ready to upload!` );
         resolve();
       };
 
-      if (['png', 'jpg', 'jpeg', 'webp', 'pdf'].includes(fileExt || '')) {
-        reader.readAsDataURL(file);
+      if ( isBinary ) {
+        reader.readAsDataURL( file );
       } else {
-        reader.readAsText(file);
+        // Use Blob.text() for text files to avoid deprecated FileReader.readAsText
+        file.text().then( ( text ) => {
+          reader.onload!( { target: { result: text } } as ProgressEvent<FileReader> );
+        } ).catch( () => {
+          reader.onload!( { target: { result: `Uploaded file ${file.name} content` } } as ProgressEvent<FileReader> );
+        } );
       }
-    });
+    } );
   };
 
-  const handleTextSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pastedText.trim()) return;
+  const handleTextSubmit = () => {
+    if ( !pastedText.trim() ) return;
 
     const title = docTitle.trim() || `Note - ${new Date().toLocaleTimeString()}`;
-    const filename = `${title.toLowerCase().replace(/\s+/g, '_')}.txt`;
+    const filename = `${title.toLowerCase().replace( /\s+/g, '_' )}.txt`;
 
     const newItem: StagedFileItem = {
-      id: `stage-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: crypto.randomUUID(),
       title,
       filename,
       fileType: 'note',
@@ -173,29 +186,28 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
       customMessage: customMsg,
     };
 
-    setStagedFiles(prev => [newItem, ...prev]);
-    setPastedText('');
-    setDocTitle('');
-    setCustomMsg('');
-    showToast(`Staged note "${title}" successfully!`);
+    setStagedFiles( prev => [newItem, ...prev] );
+    setPastedText( '' );
+    setDocTitle( '' );
+    setCustomMsg( '' );
+    showToast( `Staged note "${title}" successfully!` );
   };
 
   // Secret Message Staging States & Handler
-  const [secretTitle, setSecretTitle] = useState('');
-  const [secretMessageText, setSecretMessageText] = useState('');
-  const [secretSearchNote, setSecretSearchNote] = useState('');
+  const [secretTitle, setSecretTitle] = useState( '' );
+  const [secretMessageText, setSecretMessageText] = useState( '' );
+  const [secretSearchNote, setSecretSearchNote] = useState( '' );
 
-  const handleSecretSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!secretMessageText.trim() || !secretSearchNote.trim()) return;
+  const handleSecretSubmit = () => {
+    if ( !secretMessageText.trim() || !secretSearchNote.trim() ) return;
 
     const title = secretTitle.trim() || `Secret Message - ${new Date().toLocaleTimeString()}`;
-    const filename = `${title.toLowerCase().replace(/\s+/g, '_')}.enc`;
-    const encryptedPayload = `ENC[v1:AES-256]:${btoa(secretMessageText)}`;
+    const filename = `${title.toLowerCase().replace( /\s+/g, '_' )}.enc`;
+    const encryptedPayload = `ENC[v1:AES-256]:${btoa( secretMessageText )}`;
     const fullText = `[SECURE VAULT SECRET MESSAGE]\nEncrypted Secret: ${encryptedPayload}\n\n[Mandatory Search & AI Context Notes]: ${secretSearchNote}`;
 
     const newItem: StagedFileItem = {
-      id: `stage-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: crypto.randomUUID(),
       title,
       filename,
       fileType: 'note',
@@ -205,31 +217,30 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
       customMessage: `Secret Note: ${secretSearchNote}`,
     };
 
-    setStagedFiles(prev => [newItem, ...prev]);
-    setSecretTitle('');
-    setSecretMessageText('');
-    setSecretSearchNote('');
-    showToast(`Staged encrypted secret message "${title}" successfully!`);
+    setStagedFiles( prev => [newItem, ...prev] );
+    setSecretTitle( '' );
+    setSecretMessageText( '' );
+    setSecretSearchNote( '' );
+    showToast( `Staged encrypted secret message "${title}" successfully!` );
   };
 
   // Username + Password Staging States & Handler
-  const [credTitle, setCredTitle] = useState('');
-  const [credUsername, setCredUsername] = useState('');
-  const [credPassword, setCredPassword] = useState('');
-  const [credSearchNote, setCredSearchNote] = useState('');
+  const [credTitle, setCredTitle] = useState( '' );
+  const [credUsername, setCredUsername] = useState( '' );
+  const [credPassword, setCredPassword] = useState( '' );
+  const [credSearchNote, setCredSearchNote] = useState( '' );
 
-  const handleCredentialSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!credUsername.trim() || !credPassword.trim() || !credSearchNote.trim()) return;
+  const handleCredentialSubmit = () => {
+    if ( !credUsername.trim() || !credPassword.trim() || !credSearchNote.trim() ) return;
 
     const title = credTitle.trim() || `Credentials - ${new Date().toLocaleTimeString()}`;
-    const filename = `${title.toLowerCase().replace(/\s+/g, '_')}.cred`;
-    const encUser = `ENC[v1]:${btoa(credUsername)}`;
-    const encPass = `ENC[v1]:${btoa(credPassword)}`;
+    const filename = `${title.toLowerCase().replace( /\s+/g, '_' )}.cred`;
+    const encUser = `ENC[v1]:${btoa( credUsername )}`;
+    const encPass = `ENC[v1]:${btoa( credPassword )}`;
     const fullText = `[SECURE VAULT CREDENTIALS]\nUsername: ${encUser}\nPassword: ${encPass}\n\n[Mandatory Search & AI Context Notes]: ${credSearchNote}`;
 
     const newItem: StagedFileItem = {
-      id: `stage-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: crypto.randomUUID(),
       title,
       filename,
       fileType: 'note',
@@ -239,38 +250,38 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
       customMessage: `Credentials Note: ${credSearchNote}`,
     };
 
-    setStagedFiles(prev => [newItem, ...prev]);
-    setCredTitle('');
-    setCredUsername('');
-    setCredPassword('');
-    setCredSearchNote('');
-    showToast(`Staged encrypted credentials "${title}" successfully!`);
+    setStagedFiles( prev => [newItem, ...prev] );
+    setCredTitle( '' );
+    setCredUsername( '' );
+    setCredPassword( '' );
+    setCredSearchNote( '' );
+    showToast( `Staged encrypted credentials "${title}" successfully!` );
   };
 
-  const removeStagedItem = (id: string) => {
-    setStagedFiles(prev => prev.filter(item => item.id !== id));
+  const removeStagedItem = ( id: string ) => {
+    setStagedFiles( prev => prev.filter( item => item.id !== id ) );
   };
 
-  const updateStagedItem = (id: string, field: keyof StagedFileItem, value: string) => {
-    setStagedFiles(prev => prev.map(item => item.id === id ? { ...item, [field]: value } : item));
+  const updateStagedItem = ( id: string, field: keyof StagedFileItem, value: string ) => {
+    setStagedFiles( prev => prev.map( item => item.id === id ? { ...item, [field]: value } : item ) );
   };
 
   const handleUploadAllStaged = async () => {
-    if (stagedFiles.length === 0) return;
+    if ( stagedFiles.length === 0 ) return;
 
-    setIsProcessing(true);
+    setIsProcessing( true );
 
-    for (const item of stagedFiles) {
+    for ( const item of stagedFiles ) {
       // Append custom message to rawText if provided
       let finalRawText = item.rawText;
-      if (item.customMessage.trim()) {
+      if ( item.customMessage.trim() ) {
         finalRawText = `${item.rawText}\n\n[User Attached Note/Message]: ${item.customMessage}`;
       }
 
       // Check duplicate (only if preference is enabled)
-      const existing = duplicatePrevention ? checkDuplicate(item.filename, item.title, finalRawText) : null;
-      if (existing) {
-        setDuplicateMatch({
+      const existing = duplicatePrevention ? checkDuplicate( item.filename, item.title, finalRawText ) : null;
+      if ( existing ) {
+        setDuplicateMatch( {
           existingDoc: existing,
           pendingDoc: {
             title: item.title,
@@ -281,64 +292,68 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
             base64Data: item.base64Data,
             mimeType: item.mimeType,
           },
-        });
-        setIsProcessing(false);
+        } );
+        setIsProcessing( false );
         return; // handle duplicate flow
       }
 
-      await processAndIngestDocument(
-        item.title,
-        item.filename,
-        item.fileType,
-        finalRawText,
-        item.sizeBytes,
-        item.base64Data,
-        item.mimeType,
-        item.category
-      );
+      await processAndIngestDocument( {
+        title: item.title,
+        filename: item.filename,
+        fileType: item.fileType,
+        rawText: finalRawText,
+        sizeBytes: item.sizeBytes,
+        base64Data: item.base64Data,
+        mimeType: item.mimeType,
+        categoryName: item.category,
+      } );
     }
 
-    setStagedFiles([]);
-    setIsProcessing(false);
-    showToast('All staged files and notes successfully uploaded and embedded!');
+    setStagedFiles( [] );
+    // Wait for the last file's progress animation before re-enabling
+    await new Promise<void>( ( res ) => setTimeout( res, 700 ) );
+    setIsProcessing( false );
+    showToast( 'All staged files and notes successfully uploaded and embedded!' );
   };
 
   // Duplicate Check Helper
-  const checkDuplicate = (filename: string, title: string, rawText: string): DocumentItem | null => {
+  const checkDuplicate = ( filename: string, title: string, rawText: string ): DocumentItem | null => {
     const fnLower = filename.toLowerCase();
     const titleLower = title.toLowerCase();
     const trimmedText = rawText.trim();
 
     return (
       ingestionQueue.find(
-        (doc) =>
+        ( doc ) =>
           doc.filename.toLowerCase() === fnLower ||
           doc.title.toLowerCase() === titleLower ||
-          (trimmedText.length > 30 && doc.rawText.trim() === trimmedText)
+          ( trimmedText.length > 30 && doc.rawText.trim() === trimmedText )
       ) || null
     );
   };
 
-  const processAndIngestDocument = async (
-    title: string,
-    filename: string,
-    fileType: FileType,
-    rawText: string,
-    sizeBytes: number,
-    base64Data?: string,
-    mimeType?: string,
-    categoryName: string = fileCategory,
-    targetOverwriteId?: string
-  ) => {
-    setIsProcessing(true);
+  const processAndIngestDocument = async ( opts: {
+    title: string;
+    filename: string;
+    fileType: FileType;
+    rawText: string;
+    sizeBytes: number;
+    base64Data?: string;
+    mimeType?: string;
+    categoryName?: string;
+    targetOverwriteId?: string;
+  } ) => {
+    const { title, filename, fileType, rawText, sizeBytes, base64Data, mimeType, targetOverwriteId } = opts;
+    const categoryName = opts.categoryName ?? fileCategory;
+    setIsProcessing( true );
 
     // Stage 1: AI Analysis
-    setUploadStage({
+    setUploadStage( {
       fileName: filename,
       stageName: 'Gemini AI Parsing',
       percent: 55,
       stepText: 'Extracting metadata, category tags, and smart summary...',
-    });
+    } );
 
     let summary = 'Ingested into AI Work Memory.';
     let tags = ['#Ingested'];
@@ -346,50 +361,50 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
     let extractedText = rawText;
 
     try {
-      const response = await fetch('/api/gemini/parse', {
+      const response = await fetch( '/api/gemini/parse', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify( {
           filename,
           rawText,
           fileType,
           base64Data,
           mimeType,
-        }),
-      });
+        } ),
+      } );
 
-      if (response.ok) {
+      if ( response.ok ) {
         const data = await response.json();
-        if (data.success) {
+        if ( data.success ) {
           summary = data.summary || summary;
           tags = data.tags || tags;
           category = data.category || category;
           extractedText = data.extractedText || rawText;
         }
       }
-    } catch (err) {
-      console.warn('Using client-side fallback parsing:', err);
+    } catch ( err ) {
+      console.warn( 'Using client-side fallback parsing:', err );
     }
 
     // Stage 2: Vector Embedding
-    setUploadStage({
+    setUploadStage( {
       fileName: filename,
       stageName: 'Vector Embedding',
       percent: 85,
       stepText: 'Chunking text into 768-D semantic vector embeddings...',
-    });
+    } );
 
-    await new Promise((res) => setTimeout(res, 400)); // Smooth UI transition
+    await new Promise( ( res ) => setTimeout( res, 400 ) ); // Smooth UI transition
 
     const newDoc: DocumentItem = {
-      id: targetOverwriteId || `doc-${Date.now()}-${Math.random().toString(36).substring(2,7)}`,
+      id: targetOverwriteId || crypto.randomUUID(),
       title,
       filename,
       fileType,
       rawText: extractedText,
       tags,
       category,
-      chunkCount: Math.max(1, Math.ceil(extractedText.length / 400)),
+      chunkCount: Math.max( 1, Math.ceil( extractedText.length / 400 ) ),
       createdAt: new Date().toISOString(),
       sizeBytes: sizeBytes || 120000,
       summary,
@@ -398,96 +413,96 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
     };
 
     // Stage 3: Saved
-    setUploadStage({
+    setUploadStage( {
       fileName: filename,
       stageName: 'Vault Storage',
       percent: 100,
       stepText: 'Successfully saved & indexed in knowledge graph!',
-    });
+    } );
 
-    if (targetOverwriteId && onDocumentOverwrite) {
-      onDocumentOverwrite(newDoc);
-      showToast(`Updated & re-indexed "${title}"`);
+    if ( targetOverwriteId && onDocumentOverwrite ) {
+      onDocumentOverwrite( newDoc );
+      showToast( `Updated & re-indexed "${title}"` );
     } else {
-      onDocumentAdded(newDoc);
+      onDocumentAdded( newDoc );
     }
 
-    setTimeout(() => {
-      setIsProcessing(false);
-      setUploadStage(null);
-    }, 600);
+    // Clear the progress indicator after a brief delay (caller manages isProcessing)
+    setTimeout( () => setUploadStage( null ), 600 );
   };
 
-  const showToast = (msg: string) => {
-    setSuccessToast(msg);
-    setTimeout(() => setSuccessToast(null), 4000);
+  const showToast = ( msg: string ) => {
+    setSuccessToast( msg );
+    setTimeout( () => setSuccessToast( null ), 4000 );
   };
 
-  const showError = (msg: string) => {
-    setErrorToast(msg);
-    setTimeout(() => setErrorToast(null), 5000);
+  const showError = ( msg: string ) => {
+    setErrorToast( msg );
+    setTimeout( () => setErrorToast( null ), 5000 );
   };
 
   // Duplicate Modal Actions
-  const handleOverwriteDuplicate = () => {
-    if (!duplicateMatch) return;
+  const handleOverwriteDuplicate = async () => {
+    if ( !duplicateMatch ) return;
     const { pendingDoc, existingDoc } = duplicateMatch;
-    setDuplicateMatch(null);
+    setDuplicateMatch( null );
 
-    processAndIngestDocument(
-      pendingDoc.title,
-      pendingDoc.filename,
-      pendingDoc.fileType,
-      pendingDoc.rawText,
-      pendingDoc.sizeBytes,
-      pendingDoc.base64Data,
-      pendingDoc.mimeType,
-      fileCategory,
-      existingDoc.id // Overwrite existing ID
-    );
+    await processAndIngestDocument( {
+      title: pendingDoc.title,
+      filename: pendingDoc.filename,
+      fileType: pendingDoc.fileType,
+      rawText: pendingDoc.rawText,
+      sizeBytes: pendingDoc.sizeBytes,
+      base64Data: pendingDoc.base64Data,
+      mimeType: pendingDoc.mimeType,
+      categoryName: fileCategory,
+      targetOverwriteId: existingDoc.id,
+    } );
+    setIsProcessing( false );
   };
 
-  const handleSaveAsCopy = () => {
-    if (!duplicateMatch) return;
+  const handleSaveAsCopy = async () => {
+    if ( !duplicateMatch ) return;
     const { pendingDoc } = duplicateMatch;
-    setDuplicateMatch(null);
+    setDuplicateMatch( null );
 
     const copyTitle = `${pendingDoc.title} (Copy)`;
-    const copyFilename = `${pendingDoc.filename.replace(/(\.[^/.]+)$/, '')}_copy$1`;
+    const copyFilename = `${pendingDoc.filename.replace( /(\.[^/.]+)$/, '' )}_copy$1`;
 
-    processAndIngestDocument(
-      copyTitle,
-      copyFilename,
-      pendingDoc.fileType,
-      pendingDoc.rawText,
-      pendingDoc.sizeBytes,
-      pendingDoc.base64Data,
-      pendingDoc.mimeType,
-      fileCategory
-    );
+    await processAndIngestDocument( {
+      title: copyTitle,
+      filename: copyFilename,
+      fileType: pendingDoc.fileType,
+      rawText: pendingDoc.rawText,
+      sizeBytes: pendingDoc.sizeBytes,
+      base64Data: pendingDoc.base64Data,
+      mimeType: pendingDoc.mimeType,
+      categoryName: fileCategory,
+    } );
+    setIsProcessing( false );
   };
 
   const handleCancelDuplicate = () => {
-    setDuplicateMatch(null);
+    setDuplicateMatch( null );
   };
 
-  const injectQuickSample = (sampleType: 'contract' | 'receipt' | 'email') => {
+  const injectQuickSample = ( sampleType: 'contract' | 'receipt' | 'email' ) => {
     let sampleText = '';
     let fn = '';
     let title = '';
-    let fType: FileType = 'pdf';
+    let fType: FileType;
 
-    if (sampleType === 'contract') {
+    if ( sampleType === 'contract' ) {
       sampleText = `GLOBAL TECH VENDOR AGREEMENT\nEffective Date: July 1, 2026\nClause 8.1 Termination: Either party may terminate immediately for uncured material breach.\nClause 12 Confidentiality: Both parties agree to standard non-disclosure obligations for 3 years.\nFee Schedule: Monthly recurring maintenance fee of $3,200.`;
       fn = 'GlobalTech_Vendor_Agreement.pdf';
       title = 'Global Tech Vendor Agreement & NDA';
       fType = 'pdf';
-    } else if (sampleType === 'receipt') {
+    } else if ( sampleType === 'receipt' ) {
       sampleText = `BEST BUY STORE #412 RECEIPT\nDate: June 18, 2026\nItem: Dell XPS 15 Intel i9 32GB RAM 1TB SSD\nTotal Paid: $1,899.99 (Mastercard ending in 9012)\nWarranty: 1 Year Manufacturer Warranty valid through June 18, 2027.`;
       fn = 'Invoice_BestBuy_Laptop_2026.pdf';
       title = 'Best Buy Invoice - Dell XPS 15 Laptop';
       fType = 'pdf';
-    } else if (sampleType === 'email') {
+    } else {
       sampleText = `From: marketing@company.com\nSubject: Diwali Marketing Promo Campaign Ideas\nDate: July 10, 2026\nTeam, let's roll out our special 20% discount offer for all Diwali season subscribers.\nAction Items: Design banner by Aug 1, set up email campaign by Aug 10. Budget approved: $5,000.`;
       fn = 'Q3_Marketing_Diwali_Promo.eml';
       title = 'Email thread: Q3 Marketing Campaign & Diwali Promo';
@@ -495,7 +510,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
     }
 
     const newItem: StagedFileItem = {
-      id: `stage-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: crypto.randomUUID(),
       title,
       filename: fn,
       fileType: fType,
@@ -505,13 +520,13 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
       customMessage: 'Sample imported for review',
     };
 
-    setStagedFiles(prev => [newItem, ...prev]);
-    showToast(`Staged sample "${title}" successfully!`);
+    setStagedFiles( prev => [newItem, ...prev] );
+    showToast( `Staged sample "${title}" successfully!` );
   };
 
   return (
     <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto w-full">
-      
+
       {/* Toast Notification Banner */}
       {successToast && (
         <div className="fixed top-20 right-6 z-50 bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-2xl flex items-center gap-3 border border-emerald-400/40 animate-bounce">
@@ -544,19 +559,19 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[11px] text-slate-500 font-medium shrink-0">Quick Test:</span>
           <button
-            onClick={() => injectQuickSample('contract')}
+            onClick={() => injectQuickSample( 'contract' )}
             className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] text-slate-300 transition-all flex items-center gap-1 cursor-pointer shrink-0"
           >
             <Plus className="w-3 h-3 text-blue-400" /> Contract
           </button>
           <button
-            onClick={() => injectQuickSample('receipt')}
+            onClick={() => injectQuickSample( 'receipt' )}
             className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] text-slate-300 transition-all flex items-center gap-1 cursor-pointer shrink-0"
           >
             <Plus className="w-3 h-3 text-emerald-400" /> Receipt
           </button>
           <button
-            onClick={() => injectQuickSample('email')}
+            onClick={() => injectQuickSample( 'email' )}
             className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] text-slate-300 transition-all flex items-center gap-1 cursor-pointer shrink-0"
           >
             <Plus className="w-3 h-3 text-amber-400" /> Email
@@ -593,48 +608,44 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
       {/* Input Mode Selector Tabs */}
       <div className="grid grid-cols-2 sm:flex sm:flex-row items-center gap-2 p-2 bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl mx-auto">
         <button
-          onClick={() => setActiveUploadTab('file')}
-          className={`w-full sm:flex-1 py-2 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1.5 truncate ${
-            activeUploadTab === 'file'
-              ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-          }`}
+          onClick={() => setActiveUploadTab( 'file' )}
+          className={`w-full sm:flex-1 py-2 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1.5 truncate ${activeUploadTab === 'file'
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30'
+            : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
         >
           <Upload className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">File Upload</span>
         </button>
 
         <button
-          onClick={() => setActiveUploadTab('note')}
-          className={`w-full sm:flex-1 py-2 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1.5 truncate ${
-            activeUploadTab === 'note'
-              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-          }`}
+          onClick={() => setActiveUploadTab( 'note' )}
+          className={`w-full sm:flex-1 py-2 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1.5 truncate ${activeUploadTab === 'note'
+            ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30'
+            : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
         >
           <FileText className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">Text Note</span>
         </button>
 
         <button
-          onClick={() => setActiveUploadTab('secret')}
-          className={`w-full sm:flex-1 py-2 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1.5 truncate ${
-            activeUploadTab === 'secret'
-              ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-          }`}
+          onClick={() => setActiveUploadTab( 'secret' )}
+          className={`w-full sm:flex-1 py-2 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1.5 truncate ${activeUploadTab === 'secret'
+            ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
+            : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
         >
           <Lock className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">Secret Message</span>
         </button>
 
         <button
-          onClick={() => setActiveUploadTab('credentials')}
-          className={`w-full sm:flex-1 py-2 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1.5 truncate ${
-            activeUploadTab === 'credentials'
-              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-              : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
-          }`}
+          onClick={() => setActiveUploadTab( 'credentials' )}
+          className={`w-full sm:flex-1 py-2 px-2.5 sm:px-3 rounded-xl text-[11px] sm:text-xs font-semibold transition-all flex items-center justify-center gap-1.5 truncate ${activeUploadTab === 'credentials'
+            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+            : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+            }`}
         >
           <Key className="w-3.5 h-3.5 shrink-0" />
           <span className="truncate">Credentials</span>
@@ -645,31 +656,30 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
       <div className="max-w-3xl mx-auto">
         {activeUploadTab === 'file' && (
           <div
-            onDragOver={(e) => {
+            onDragOver={( e ) => {
               e.preventDefault();
-              setDragActive(true);
+              setDragActive( true );
             }}
-            onDragLeave={() => setDragActive(false)}
-            onDrop={(e) => {
+            onDragLeave={() => setDragActive( false )}
+            onDrop={( e ) => {
               e.preventDefault();
-              setDragActive(false);
-              handleFileUpload(e.dataTransfer.files);
+              setDragActive( false );
+              handleFileUpload( e.dataTransfer.files );
             }}
-            className={`p-10 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center text-center relative bg-slate-900/40 ${
-              dragActive
-                ? 'border-blue-500 bg-blue-500/15 scale-[1.01]'
-                : 'border-slate-800 hover:border-slate-700'
-            }`}
+            className={`p-10 rounded-2xl border-2 border-dashed transition-all flex flex-col items-center justify-center text-center relative bg-slate-900/40 ${dragActive
+              ? 'border-blue-500 bg-blue-500/15 scale-[1.01]'
+              : 'border-slate-800 hover:border-slate-700'
+              }`}
           >
             <input
               type="file"
               multiple
-              onChange={(e) => handleFileUpload(e.target.files)}
+              onChange={( e ) => handleFileUpload( e.target.files )}
               className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
               accept=".pdf,.txt,.md,.json,.eml,.png,.jpg,.jpeg,.xlsx,.csv"
               disabled={isProcessing}
             />
-            
+
             <div className="w-16 h-16 rounded-2xl bg-blue-600/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-4 shadow-xl shadow-blue-500/10">
               {isProcessing ? (
                 <RefreshCw className="w-8 h-8 animate-spin text-blue-400" />
@@ -695,7 +705,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
         )}
 
         {activeUploadTab === 'note' && (
-          <form onSubmit={handleTextSubmit} className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-4 shadow-2xl">
+          <form onSubmit={( e ) => { e.preventDefault(); handleTextSubmit(); }} className="bg-slate-900/60 border border-slate-800 p-6 rounded-2xl space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <label className="text-xs font-bold text-white flex items-center gap-2">
                 <FileText className="w-4 h-4 text-emerald-400" />
@@ -703,14 +713,14 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
               </label>
               <select
                 value={fileCategory}
-                onChange={(e) => setFileCategory(e.target.value)}
+                onChange={( e ) => setFileCategory( e.target.value )}
                 className="bg-slate-950 border border-slate-800 rounded-lg text-xs px-3 py-1.5 text-slate-300 focus:outline-none"
               >
-                {categories.map((cat) => (
+                {categories.map( ( cat ) => (
                   <option key={cat} value={cat}>
                     {cat}
                   </option>
-                ))}
+                ) )}
               </select>
             </div>
 
@@ -718,7 +728,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
               type="text"
               placeholder="Document title (e.g., Client Phoenix Sync Notes)..."
               value={docTitle}
-              onChange={(e) => setDocTitle(e.target.value)}
+              onChange={( e ) => setDocTitle( e.target.value )}
               disabled={isProcessing}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500"
             />
@@ -727,7 +737,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
               rows={5}
               placeholder="Paste text, meeting transcripts, emails, or scratchpad notes here..."
               value={pastedText}
-              onChange={(e) => setPastedText(e.target.value)}
+              onChange={( e ) => setPastedText( e.target.value )}
               disabled={isProcessing}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500 resize-none font-mono"
             />
@@ -744,7 +754,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
         )}
 
         {activeUploadTab === 'secret' && (
-          <form onSubmit={handleSecretSubmit} className="bg-slate-900/60 border border-amber-500/30 p-6 rounded-2xl space-y-4 shadow-2xl">
+          <form onSubmit={( e ) => { e.preventDefault(); handleSecretSubmit(); }} className="bg-slate-900/60 border border-amber-500/30 p-6 rounded-2xl space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <label className="text-xs font-bold text-white flex items-center gap-2">
                 <Lock className="w-4 h-4 text-amber-400" />
@@ -759,7 +769,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
               type="text"
               placeholder="Secret title (e.g., API Master Key Note)..."
               value={secretTitle}
-              onChange={(e) => setSecretTitle(e.target.value)}
+              onChange={( e ) => setSecretTitle( e.target.value )}
               disabled={isProcessing}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500"
             />
@@ -768,21 +778,22 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
               rows={4}
               placeholder="Enter secret message or payload to encrypt..."
               value={secretMessageText}
-              onChange={(e) => setSecretMessageText(e.target.value)}
+              onChange={( e ) => setSecretMessageText( e.target.value )}
               disabled={isProcessing}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3.5 text-xs text-amber-200 placeholder-slate-500 focus:outline-none focus:border-amber-500 resize-none font-mono"
             />
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <label htmlFor="secret-search-note" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                 <span>Mandatory Search & AI Context Note:</span>
                 <span className="text-red-400">*</span>
               </label>
               <input
+                id="secret-search-note"
                 type="text"
                 placeholder="Describe this secret in plain text so AI search can find it..."
                 value={secretSearchNote}
-                onChange={(e) => setSecretSearchNote(e.target.value)}
+                onChange={( e ) => setSecretSearchNote( e.target.value )}
                 disabled={isProcessing}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-amber-500"
               />
@@ -800,7 +811,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
         )}
 
         {activeUploadTab === 'credentials' && (
-          <form onSubmit={handleCredentialSubmit} className="bg-slate-900/60 border border-indigo-500/30 p-6 rounded-2xl space-y-4 shadow-2xl">
+          <form onSubmit={( e ) => { e.preventDefault(); handleCredentialSubmit(); }} className="bg-slate-900/60 border border-indigo-500/30 p-6 rounded-2xl space-y-4 shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <label className="text-xs font-bold text-white flex items-center gap-2">
                 <Key className="w-4 h-4 text-indigo-400" />
@@ -815,7 +826,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
               type="text"
               placeholder="Credential title (e.g., AWS Production Admin Portal)..."
               value={credTitle}
-              onChange={(e) => setCredTitle(e.target.value)}
+              onChange={( e ) => setCredTitle( e.target.value )}
               disabled={isProcessing}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
             />
@@ -825,7 +836,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
                 type="text"
                 placeholder="Username / Email..."
                 value={credUsername}
-                onChange={(e) => setCredUsername(e.target.value)}
+                onChange={( e ) => setCredUsername( e.target.value )}
                 disabled={isProcessing}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono"
               />
@@ -833,22 +844,23 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
                 type="password"
                 placeholder="Password..."
                 value={credPassword}
-                onChange={(e) => setCredPassword(e.target.value)}
+                onChange={( e ) => setCredPassword( e.target.value )}
                 disabled={isProcessing}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500 font-mono"
               />
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <label htmlFor="cred-search-note" className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
                 <span>Mandatory Search & AI Context Note:</span>
                 <span className="text-red-400">*</span>
               </label>
               <input
+                id="cred-search-note"
                 type="text"
                 placeholder="Describe what these credentials are for (plain text search note)..."
                 value={credSearchNote}
-                onChange={(e) => setCredSearchNote(e.target.value)}
+                onChange={( e ) => setCredSearchNote( e.target.value )}
                 disabled={isProcessing}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-indigo-500"
               />
@@ -902,7 +914,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
           </div>
         ) : (
           <div className="space-y-4">
-            {stagedFiles.map((item) => (
+            {stagedFiles.map( ( item ) => (
               <div
                 key={item.id}
                 className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3"
@@ -915,17 +927,17 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
                       {item.fileType === 'note' && <File className="w-4 h-4 text-emerald-400" />}
                       {item.fileType === 'image' && <ImageIcon className="w-4 h-4 text-blue-400" />}
                     </div>
-                    
+
                     <div className="flex-1 space-y-1">
                       <input
                         type="text"
                         value={item.title}
-                        onChange={(e) => updateStagedItem(item.id, 'title', e.target.value)}
+                        onChange={( e ) => updateStagedItem( item.id, 'title', e.target.value )}
                         className="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white font-semibold focus:outline-none focus:border-blue-500"
                         placeholder="Document title..."
                       />
                       <p className="text-[10px] text-slate-400 font-mono px-1">
-                        {item.filename} • {(item.sizeBytes / 1024).toFixed(1)} KB • Type: {item.fileType}
+                        {item.filename} • {( item.sizeBytes / 1024 ).toFixed( 1 )} KB • Type: {item.fileType}
                       </p>
                     </div>
                   </div>
@@ -933,16 +945,16 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
                   <div className="flex items-center gap-2 self-end sm:self-center">
                     <select
                       value={item.category}
-                      onChange={(e) => updateStagedItem(item.id, 'category', e.target.value)}
+                      onChange={( e ) => updateStagedItem( item.id, 'category', e.target.value )}
                       className="bg-slate-900 border border-slate-800 rounded-lg text-[11px] px-2.5 py-1.5 text-slate-300 focus:outline-none"
                     >
-                      {categories.map((cat) => (
+                      {categories.map( ( cat ) => (
                         <option key={cat} value={cat}>{cat}</option>
-                      ))}
+                      ) )}
                     </select>
 
                     <button
-                      onClick={() => removeStagedItem(item.id)}
+                      onClick={() => removeStagedItem( item.id )}
                       className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all"
                       title="Remove from staging"
                     >
@@ -956,13 +968,13 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
                   <input
                     type="text"
                     value={item.customMessage}
-                    onChange={(e) => updateStagedItem(item.id, 'customMessage', e.target.value)}
+                    onChange={( e ) => updateStagedItem( item.id, 'customMessage', e.target.value )}
                     placeholder="Attach an additional message, instructions, or context note with this file..."
                     className="w-full bg-slate-900/60 border border-slate-800/80 rounded-lg px-3 py-1.5 text-[11px] text-slate-200 placeholder-slate-500 focus:outline-none focus:border-blue-500/50"
                   />
                 </div>
               </div>
-            ))}
+            ) )}
           </div>
         )}
       </div>
@@ -985,7 +997,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
           </div>
         ) : (
           <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-            {ingestionQueue.map((item) => (
+            {ingestionQueue.map( ( item ) => (
               <div
                 key={item.id}
                 className="p-3.5 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
@@ -1006,11 +1018,11 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
                 <div className="flex items-center gap-3">
                   {/* Tags */}
                   <div className="hidden sm:flex flex-wrap gap-1">
-                    {item.tags.slice(0, 3).map((tag, i) => (
-                      <span key={i} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-300">
+                    {item.tags.slice( 0, 3 ).map( ( tag ) => (
+                      <span key={tag} className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 text-[10px] text-slate-300">
                         {tag}
                       </span>
-                    ))}
+                    ) )}
                   </div>
 
                   {/* Status Badge */}
@@ -1020,7 +1032,7 @@ export const UploadModule: React.FC<UploadModuleProps> = ({
                   </span>
                 </div>
               </div>
-            ))}
+            ) )}
           </div>
         )}
       </div>
