@@ -3,7 +3,7 @@
   "buildCommand": "vite build",
   "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index" },
+    { "source": "/api/:path*", "destination": "/api/index" },
     { "source": "/((?!api|assets|favicon\\.svg).*)", "destination": "/index.html" }
   ],
   "functions": {
