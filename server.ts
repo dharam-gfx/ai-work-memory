@@ -16,6 +16,30 @@ const PORT = 3000;
 app.use( express.json( { limit: '50mb' } ) );
 app.use( express.urlencoded( { extended: true, limit: '50mb' } ) );
 
+// Retry generateContent with exponential backoff on 429
+async function generateWithRetry(
+  client: GoogleGenAI,
+  params: Parameters<GoogleGenAI['models']['generateContent']>[0],
+  maxRetries = 4
+): Promise<Awaited<ReturnType<GoogleGenAI['models']['generateContent']>>> {
+  let delay = 5000;
+  for ( let attempt = 0; attempt <= maxRetries; attempt++ ) {
+    try {
+      return await client.models.generateContent( params );
+    } catch ( err: any ) {
+      const is429 = err?.status === 429 || err?.message?.includes( '429' );
+      if ( !is429 || attempt === maxRetries ) throw err;
+      // honour retryDelay from the API response when available
+      const retryMatch = err?.message?.match( /retryDelay":"(\d+)s/ );
+      const waitMs = retryMatch ? Number.parseInt( retryMatch[1] ) * 1000 : delay;
+      console.warn( `Gemini 429 – retrying in ${waitMs / 1000}s (attempt ${attempt + 1}/${maxRetries})` );
+      await new Promise( resolve => setTimeout( resolve, waitMs ) );
+      delay *= 2;
+    }
+  }
+  throw new Error( 'generateWithRetry: unreachable' );
+}
+
 // Initialize Google GenAI Server Client
 let ai: GoogleGenAI | null = null;
 if ( process.env.GEMINI_API_KEY ) {
@@ -82,7 +106,7 @@ Return valid JSON strictly matching this schema:
         contentParts.push( { text: `DOCUMENT CONTENT:\n${rawText}` } );
       }
 
-      const response = await ai.models.generateContent( {
+      const response = await generateWithRetry( ai, {
         model: 'gemini-3.6-flash',
         contents: { parts: contentParts },
         config: {
@@ -177,7 +201,7 @@ USER QUESTION:
 
 Please provide a clear, accurate, and structured answer:`;
 
-      const response = await ai.models.generateContent( {
+      const response = await generateWithRetry( ai, {
         model: 'gemini-3.6-flash',
         contents: userPrompt,
         config: {
