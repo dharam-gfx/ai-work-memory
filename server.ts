@@ -260,14 +260,20 @@ if ( process.env.NODE_ENV !== 'production' ) {
     appType: 'spa',
   } );
   app.use( vite.middlewares );
-} else {
+} else if ( !process.env.VERCEL ) {
+  // Standalone production server — Vercel handles static files via outputDirectory
   const distPath = path.join( process.cwd(), 'dist' );
   app.use( express.static( distPath ) );
-  app.get( '*', ( req, res ) => {
+  app.get( '*', ( _req, res ) => {
     res.sendFile( path.join( distPath, 'index.html' ) );
   } );
 }
 
-app.listen( PORT, '0.0.0.0', () => {
-  console.log( `AI Work Memory server listening on http://0.0.0.0:${PORT}` );
-} );
+// Vercel requires a default export; standalone mode binds the port
+if ( !process.env.VERCEL ) {
+  app.listen( PORT, '0.0.0.0', () => {
+    console.log( `AI Work Memory server listening on http://0.0.0.0:${PORT}` );
+  } );
+}
+
+export default app;
