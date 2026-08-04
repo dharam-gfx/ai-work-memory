@@ -357,20 +357,24 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
 
                             {/* Snippet Drawer */}
                             {isExpanded && (() => {
-                              const decodedSnippet = decodeVaultText(cite.snippet);
-                              const isImageSnippet = decodedSnippet.trimStart().startsWith('data:image');
-                              const isBinarySnippet = !isImageSnippet && decodedSnippet.trimStart().startsWith('data:');
+                              // For image docs, the snippet is a label (not base64) — look up original rawText from vault
+                              const vaultDoc = documents.find(d => d.id === cite.docId);
+                              const vaultRaw = vaultDoc?.rawText ?? '';
+                              const isVaultImage = vaultRaw.trimStart().startsWith('data:image');
+                              const displaySource = isVaultImage ? vaultRaw : decodeVaultText(cite.snippet);
+                              const isImageSnippet = displaySource.trimStart().startsWith('data:image');
+                              const isBinarySnippet = !isImageSnippet && displaySource.trimStart().startsWith('data:');
                               let snippetContent: React.ReactNode;
                               if (isImageSnippet) {
                                 snippetContent = (
                                   <div className="flex items-center justify-center bg-slate-950 rounded-lg p-1.5">
-                                    <img src={decodedSnippet} alt={cite.docTitle} className="max-h-48 max-w-full object-contain rounded" />
+                                    <img src={displaySource} alt={cite.docTitle} className="max-h-48 max-w-full object-contain rounded" />
                                   </div>
                                 );
                               } else if (isBinarySnippet) {
                                 snippetContent = <p className="text-[10px] sm:text-[11px] text-slate-400 italic">[Binary file data — content is not displayable as text]</p>;
                               } else {
-                                snippetContent = <p className="text-[10px] sm:text-[11px] text-slate-300 font-mono leading-relaxed">"{decodedSnippet}"</p>;
+                                snippetContent = <p className="text-[10px] sm:text-[11px] text-slate-300 font-mono leading-relaxed">"{displaySource}"</p>;
                               }
                               return (
                                 <div className="mt-2 pt-2 border-t border-slate-800 bg-slate-900/80 p-2 rounded-lg">
