@@ -624,7 +624,7 @@ export const LandingPage: React.FC<LandingPageProps> = ( { onLaunchDashboard, on
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[
               { icon: <ShieldCheck className="w-5 h-5 text-emerald-400" />, title: 'Row-Level Security (RLS)', desc: 'Every DB query is filtered to your user_id by Supabase PostgreSQL RLS policies enforced at the DB engine level.' },
-              { icon: <Lock className="w-5 h-5 text-amber-400" />, title: 'AES-256 Secret Vault', desc: 'Passwords and secrets are envelope-encoded before storage. Plain text never reaches the database.' },
+              { icon: <Lock className="w-5 h-5 text-amber-400" />, title: 'AES-256-GCM Secret Vault', desc: 'Credentials and secrets are encrypted with AES-256-GCM using a server-side key that never leaves the server. Decryption happens only at query time — plaintext is never stored.' },
               { icon: <Key className="w-5 h-5 text-indigo-400" />, title: 'Server-side AI Proxy', desc: 'Your Gemini API key lives only in .env on the server. It is never bundled into the browser bundle.' },
               { icon: <Database className="w-5 h-5 text-blue-400" />, title: 'Offline localStorage Cache', desc: 'When Supabase is unreachable, data is cached in browser localStorage — sandboxed from other sites.' },
               { icon: <Users className="w-5 h-5 text-purple-400" />, title: 'Zero Cross-User Leakage', desc: 'RLS is enforced at the DB engine level. Even a misconfigured API endpoint returns zero rows for other users.' },
@@ -658,7 +658,7 @@ export const LandingPage: React.FC<LandingPageProps> = ( { onLaunchDashboard, on
                 {[
                   { icon: <Layers className="w-5 h-5" />, title: 'Fullstack Framework', desc: 'React 19 + Express + Vite 6 + Tailwind CSS v4' },
                   { icon: <Database className="w-5 h-5" />, title: 'Vector Engine & Storage', desc: 'Supabase PostgreSQL + client-side cosine similarity fallback' },
-                  { icon: <Cpu className="w-5 h-5" />, title: 'AI Engine', desc: 'Google Gemini 2.5 Flash — file parse, RAG query, embedding' },
+                  { icon: <Cpu className="w-5 h-5" />, title: 'AI Engine', desc: 'Google Gemini — gemini-2.0-flash for document parsing, gemini-2.0-flash-lite for fast RAG chat queries' },
                 ].map( ( { icon, title, desc } ) => (
                   <div key={title} className="flex items-start gap-4">
                     <div className="p-2 rounded-lg bg-slate-800 text-blue-400 shrink-0">{icon}</div>
