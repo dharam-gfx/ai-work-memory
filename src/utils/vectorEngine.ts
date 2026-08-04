@@ -56,24 +56,34 @@ export function chunkText( rawText: string, maxWordsPerChunk = 120, overlapWords
   const paragraphs = rawText.split( /\n\s*\n/ ).map( p => p.trim() ).filter( Boolean );
   const chunks: string[] = [];
 
-  let currentWords: string[] = [];
+  // Track paragraphs (not words) so newlines within each paragraph are preserved
+  let currentParas: string[] = [];
+  let currentWordCount = 0;
 
   for ( const para of paragraphs ) {
-    const paraWords = para.split( /\s+/ );
-    if ( currentWords.length + paraWords.length <= maxWordsPerChunk ) {
-      currentWords.push( ...paraWords );
+    const paraWordCount = para.split( /\s+/ ).length;
+    if ( currentWordCount + paraWordCount <= maxWordsPerChunk ) {
+      currentParas.push( para );
+      currentWordCount += paraWordCount;
     } else {
-      if ( currentWords.length > 0 ) {
-        chunks.push( currentWords.join( ' ' ) );
+      if ( currentParas.length > 0 ) {
+        chunks.push( currentParas.join( '\n\n' ) );
       }
-      // Start next chunk with overlap
-      const overlap = currentWords.slice( -overlapWords );
-      currentWords = [...overlap, ...paraWords];
+      // Overlap: carry last paragraph(s) whose total words fit within overlapWords
+      const overlapParas: string[] = [];
+      let overlapCount = 0;
+      for ( let i = currentParas.length - 1; i >= 0 && overlapCount < overlapWords; i-- ) {
+        const wc = currentParas[i].split( /\s+/ ).length;
+        overlapParas.unshift( currentParas[i] );
+        overlapCount += wc;
+      }
+      currentParas = [...overlapParas, para];
+      currentWordCount = overlapCount + paraWordCount;
     }
   }
 
-  if ( currentWords.length > 0 ) {
-    chunks.push( currentWords.join( ' ' ) );
+  if ( currentParas.length > 0 ) {
+    chunks.push( currentParas.join( '\n\n' ) );
   }
 
   return chunks.length > 0 ? chunks : [rawText];
@@ -131,7 +141,10 @@ export function retrieveRelevantChunks(
   topK = 4
 ): { citations: Citation[]; contextSnippet: string } {
   const queryLower = query.toLowerCase();
+  // Words that describe the request intent, not the content being searched for
+  const STOP_WORDS = new Set( ['provide','show','give','find','list','tell','what','how','when','where','which','who','get','more','details','detail','summary','overview','all','every','complete','full','regarding','about','related','from','the','for','with','and','but','not','this','that','these','those','can','please','pdf','doc','txt','csv','json','note','email','image','file','document','vault'] );
   const queryKeywords = queryLower.replace( /[^a-z0-9]/g, ' ' ).split( /\s+/ ).filter( w => w.length > 2 );
+  const contentKeywords = queryKeywords.filter( w => !STOP_WORDS.has( w ) );
   const queryVector = generateLocalEmbedding( query );
 
   const scoredChunks: {
@@ -161,16 +174,16 @@ export function retrieveRelevantChunks(
       const chunkVector = generateLocalEmbedding( chunkTextStr );
       const vecScore = cosineSimilarity( queryVector, chunkVector );
 
-      // Keyword match score
+      // Keyword match score using content-only keywords to avoid false positives
       const chunkLower = chunkTextStr.toLowerCase();
       let kwHits = 0;
-      queryKeywords.forEach( kw => {
+      contentKeywords.forEach( kw => {
         if ( chunkLower.includes( kw ) ) kwHits += 1;
         if ( doc.title.toLowerCase().includes( kw ) ) kwHits += 1.5;
         if ( doc.tags.some( t => t.toLowerCase().includes( kw ) ) ) kwHits += 2;
       } );
 
-      const kwScore = queryKeywords.length > 0 ? ( kwHits / ( queryKeywords.length * 2 ) ) : 0;
+      const kwScore = contentKeywords.length > 0 ? ( kwHits / ( contentKeywords.length * 2 ) ) : 0;
       const combinedScore = vecScore * 0.4 + Math.min( kwScore, 1.0 ) * 0.6;
 
       scoredChunks.push( {
@@ -186,10 +199,22 @@ export function retrieveRelevantChunks(
 
   // Sort descending by score
   scoredChunks.sort( ( a, b ) => b.score - a.score );
-  const topMatches = scoredChunks.slice( 0, topK ).filter( c => c.score > 0.1 );
 
-  // If no match score > 0.1, fallback to top 2
-  const finalMatches = topMatches.length > 0 ? topMatches : scoredChunks.slice( 0, 2 );
+  // Allow up to 4 chunks per document for detail-rich queries
+  const perDocCount = new Map<string, number>();
+  const dedupedChunks = scoredChunks.filter( c => {
+    const count = perDocCount.get( c.docId ) ?? 0;
+    if ( count >= 4 ) return false;
+    perDocCount.set( c.docId, count + 1 );
+    return true;
+  } );
+
+  const topMatches = dedupedChunks.slice( 0, topK ).filter( c => c.score > 0.05 );
+
+  // If no match score > 0.05, fallback to top 2
+  const finalMatches = topMatches.length > 0 ? topMatches : dedupedChunks.slice( 0, 2 );
+
+  const docMap = new Map( allDocuments.map( d => [d.id, d] ) );
 
   const citations: Citation[] = finalMatches.map( m => ( {
     docId: m.docId,
@@ -197,11 +222,19 @@ export function retrieveRelevantChunks(
     fileType: m.fileType,
     snippet: m.text,
     chunkIndex: m.chunkIndex,
-    matchScore: Math.min( Math.max( m.score, 0.45 ), 0.98 )
+    matchScore: Math.min( Math.max( m.score, 0.05 ), 0.98 )
   } ) );
 
   const contextSnippet = finalMatches
-    .map( ( m, i ) => `[Source ${i + 1}: ${m.docTitle}]\n${m.text}` )
+    .map( ( m, i ) => {
+      const doc = docMap.get( m.docId );
+      const meta = [
+        doc?.summary ? `Summary: ${doc.summary}` : '',
+        doc?.tags?.length ? `Tags: ${doc.tags.join( ', ' )}` : '',
+      ].filter( Boolean ).join( ' | ' );
+      const metaSuffix = meta ? ' (' + meta + ')' : '';
+      return `[Source ${i + 1}: ${m.docTitle}]${metaSuffix}\n${m.text}`;
+    } )
     .join( '\n\n' );
 
   return { citations, contextSnippet };

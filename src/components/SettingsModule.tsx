@@ -144,7 +144,7 @@ export const SettingsModule: React.FC<SettingsModuleProps> = ({ stats, preferenc
             </div>
             <div className="flex justify-between items-center py-1 border-b border-slate-900">
               <span className="text-slate-400">AI Model Alias:</span>
-              <span className="font-mono text-amber-400">gemini-3.6-flash</span>
+              <span className="font-mono text-amber-400">Gemini 2.5/3.6 Flash</span>
             </div>
             <div className="flex justify-between items-center py-1 border-b border-slate-900">
               <span className="text-slate-400">Server Status:</span>

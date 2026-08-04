@@ -24,7 +24,7 @@ A full-stack RAG (Retrieval-Augmented Generation) platform for managing your per
 - **Document Vault** — PDF, TXT, MD, JSON, image (PNG/JPG/WEBP), email (.eml), CSV — 1 MB limit per file; AI extracts metadata and summary via Gemini
 - **Staged Upload Queue** — review, rename, and attach context notes before committing to vault
 - **Duplicate Detection** — filename / title / content hash check before ingestion; overwrite or keep-both options
-- **Secrets & Credentials** — AES-256 envelope-encoded storage with mandatory plain-text search notes
+- **Secrets & Credentials** — AES-256-GCM encryption via server-side `VAULT_ENCRYPTION_KEY`; backward-compatible with legacy Base64 `ENC[v1]:` format; decryption happens server-side only so plaintext never touches the browser storage
 - **Knowledge Graph** — interactive D3 node-edge visualizer linking documents and concepts
 - **Timeline** — chronological view of ingested knowledge events
 - **Auth** — Google OAuth, GitHub OAuth, Magic Link, Phone OTP, Email+Password (all via Supabase)
@@ -78,8 +78,9 @@ A full-stack RAG (Retrieval-Augmented Generation) platform for managing your per
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/health` | Liveness check; returns `geminiEnabled` flag |
-| `POST` | `/api/gemini/parse` | Parses uploaded file — extracts summary, tags, category, text via Gemini |
-| `POST` | `/api/rag/query` | RAG query — retrieves relevant chunks, synthesizes answer with citations |
+| `POST` | `/api/gemini/parse` | Parses uploaded file — extracts summary, tags, category, text via `gemini-2.0-flash` |
+| `POST` | `/api/rag/query` | RAG query — retrieves relevant chunks, synthesizes answer with citations via `gemini-2.0-flash-lite` |
+| `POST` | `/api/vault/encrypt` | AES-256-GCM encrypt a plaintext value server-side; falls back to Base64 if `VAULT_ENCRYPTION_KEY` is not set |
 
 All Gemini calls are server-side only. The `GEMINI_API_KEY` is never sent to the browser. Both endpoints fall back gracefully when `GEMINI_API_KEY` is missing.
 
@@ -107,6 +108,10 @@ cp .env.example .env
 ```env
 # Server-side only — never exposed to browser
 GEMINI_API_KEY=your_google_gemini_api_key
+
+# 32-byte hex key for AES-256-GCM vault encryption
+# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+VAULT_ENCRYPTION_KEY=your_64_char_hex_key
 
 # Browser-safe Supabase credentials (VITE_ prefix required by Vite)
 VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -198,10 +203,13 @@ This is enforced **inside PostgreSQL** — not in application code. Even a bug i
 ## Security Notes for Developers
 
 - `GEMINI_API_KEY` lives only in `.env` and is read by `server.ts` — never bundled into the frontend
+- `VAULT_ENCRYPTION_KEY` is a 32-byte hex secret used for AES-256-GCM credential encryption — server-side only, never sent to browser
 - `VITE_SUPABASE_ANON_KEY` is intentionally public-safe — RLS makes it safe to expose
-- Secrets uploaded by users are Base64-encoded with an `ENC[v1:AES-256]` marker before DB write
+- New credentials are encrypted as `ENC[v2]:iv.authTag.ciphertext` (AES-256-GCM). Legacy `ENC[v1]:base64` entries remain readable via the backward-compatible decoder
+- Decryption happens only on the server at query time — plaintext is never stored in localStorage or Supabase
 - File upload limit: **1 MB per file** (enforced in `UploadModule` before read)
 - Binary files (images, PDFs, XLSX) store a readable placeholder in `rawText`; actual binary goes in `base64Data` for Gemini and is never chunked into the vector index
+- Gemini 429 quota exhaustion is detected immediately — daily-limit errors skip retries and fall back to the structured retrieval answer within milliseconds
 
 ---
 

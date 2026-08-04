@@ -23,6 +23,68 @@ import { SEED_ROLES } from '../data/seedData';
 import { retrieveRelevantChunks } from '../utils/vectorEngine';
 import Markdown from 'react-markdown';
 
+// Decode ENC[v1]:base64 and ENC[v1:AES-256]:base64 tokens in vault text
+function decodeVaultText(text: string): string {
+  const decode = (b64: string, fallback: string) => { try { return atob(b64); } catch { return fallback; } };
+  const out = text.replace(/ENC\[v1:[^\]]+\]:([A-Za-z0-9+/=]+)/g, (m, b) => decode(b, m));
+  return out.replace(/ENC\[v1\]:([A-Za-z0-9+/=]+)/g, (m, b) => decode(b, m));
+}
+
+function decodeDocuments(docs: DocumentItem[]): DocumentItem[] {
+  return docs.map(doc => ({ ...doc, rawText: decodeVaultText(doc.rawText) }));
+}
+
+function cleanSnippet(raw: string): string {
+  return raw
+    .replace(/\[SECURE VAULT CREDENTIALS\]\s*/gi, '')
+    .replace(/\[SECURE VAULT SECRET MESSAGE\]\s*/gi, '')
+    .replace(/\[Mandatory Search[^\]]*\]:[^\n]*/gi, '')
+    .replace(/\[User Attached Note[^\]]*\]:[^\n]*/gi, '')
+    .replace(/Ingested into AI Work Memory\.?/gi, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function buildFallbackAnswer(query: string, citations: { docTitle: string; snippet: string }[]): string {
+  if (citations.length === 0) {
+    return `I searched your documents for "${query}" but found no matches. Try uploading relevant files in the Upload Knowledge module!`;
+  }
+  const isBinary = (text: string) => text.trimStart().startsWith('data:');
+
+  // Group chunks by document so all detail from one doc appears together
+  const byDoc = new Map<string, string[]>();
+  citations.forEach(cite => {
+    const clean = cleanSnippet(cite.snippet || '');
+    if (!clean || isBinary(clean)) return;
+    if (!byDoc.has(cite.docTitle)) byDoc.set(cite.docTitle, []);
+    byDoc.get(cite.docTitle)!.push(clean);
+  });
+
+  if (byDoc.size === 0) {
+    return `I searched your documents for "${query}" but found no matches. Try uploading relevant files in the Upload Knowledge module!`;
+  }
+
+  const srcList = [...byDoc.keys()].join(', ');
+  const lines: string[] = [`**Sources:** ${srcList}`, ''];
+  let isFirst = true;
+  byDoc.forEach((chunks, docTitle) => {
+    if (isFirst) {
+      lines.push(`**From ${docTitle}:**`);
+      chunks.forEach(chunk => {
+        chunk.split('\n').map(l => l.trim().replace(/^[•·▸-]\s*/, '')).filter(Boolean).forEach(l => lines.push(`- ${l}`));
+      });
+      isFirst = false;
+    } else {
+      lines.push('', `**Also from ${docTitle}:**`);
+      chunks.forEach(chunk => {
+        const preview = chunk.length > 300 ? chunk.substring(0, 300) + '...' : chunk;
+        lines.push(preview);
+      });
+    }
+  });
+  return lines.join('\n');
+}
+
 interface ChatModuleProps {
   documents: DocumentItem[];
   messages: ChatMessage[];
@@ -75,7 +137,7 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: textToSend,
-          documents: documents,
+          documents: decodeDocuments(documents),
           roleContext: rolePreset?.title || selectedRole?.title,
           strictGrounding,
         }),
@@ -84,10 +146,12 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
+          // Strip any binary data URLs that slipped through from the AI context
+          const safeAnswer = (data.answer as string).replace(/data:[a-z/+]+;base64,[A-Za-z0-9+/=\s]{20,}/g, '[binary data omitted]');
           const aiMessage: ChatMessage = {
             id: `msg-ai-${Date.now()}`,
             sender: 'ai',
-            text: data.answer,
+            text: safeAnswer,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             citations: data.citations || [],
             status: 'done',
@@ -102,16 +166,8 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
     }
 
     // Client fallback RAG engine
-    const { citations } = retrieveRelevantChunks(textToSend, documents, 4);
-
-    let synthesizedAnswer = '';
-    if (citations.length > 0) {
-      synthesizedAnswer = `Based on your ingested files (${citations.map((c) => c.docTitle).join(', ')}):\n\nKey details found in your knowledge base:\n• ${citations[0].snippet.replace(/\n+/g, ' ')}\n\n${
-        citations[1] ? `• Additional context from ${citations[1].docTitle}: ${citations[1].snippet.substring(0, 150)}...` : ''
-      }`;
-    } else {
-      synthesizedAnswer = `I searched your ${documents.length} ingested documents for "${textToSend}", but didn't find exact keyword or vector matches. Try uploading relevant files in the Upload Knowledge module!`;
-    }
+    const { citations } = retrieveRelevantChunks(textToSend, decodeDocuments(documents), 8);
+    const synthesizedAnswer = buildFallbackAnswer(textToSend, citations);
 
     const aiFallbackMessage: ChatMessage = {
       id: `msg-ai-${Date.now()}`,
@@ -301,30 +357,27 @@ export const ChatModule: React.FC<ChatModuleProps> = ({
 
                             {/* Snippet Drawer */}
                             {isExpanded && (() => {
-                              const isImageSnippet = cite.snippet.trimStart().startsWith('data:image');
-                              const isBinarySnippet = !isImageSnippet && cite.snippet.trimStart().startsWith('data:');
+                              const decodedSnippet = decodeVaultText(cite.snippet);
+                              const isImageSnippet = decodedSnippet.trimStart().startsWith('data:image');
+                              const isBinarySnippet = !isImageSnippet && decodedSnippet.trimStart().startsWith('data:');
+                              let snippetContent: React.ReactNode;
+                              if (isImageSnippet) {
+                                snippetContent = (
+                                  <div className="flex items-center justify-center bg-slate-950 rounded-lg p-1.5">
+                                    <img src={decodedSnippet} alt={cite.docTitle} className="max-h-48 max-w-full object-contain rounded" />
+                                  </div>
+                                );
+                              } else if (isBinarySnippet) {
+                                snippetContent = <p className="text-[10px] sm:text-[11px] text-slate-400 italic">[Binary file data — content is not displayable as text]</p>;
+                              } else {
+                                snippetContent = <p className="text-[10px] sm:text-[11px] text-slate-300 font-mono leading-relaxed">"{decodedSnippet}"</p>;
+                              }
                               return (
                                 <div className="mt-2 pt-2 border-t border-slate-800 bg-slate-900/80 p-2 rounded-lg">
                                   <p className="text-[9px] text-slate-500 font-sans mb-1.5 font-semibold uppercase">
                                     {isImageSnippet ? 'Image Preview:' : 'Exact Chunk Snippet:'}
                                   </p>
-                                  {isImageSnippet ? (
-                                    <div className="flex items-center justify-center bg-slate-950 rounded-lg p-1.5">
-                                      <img
-                                        src={cite.snippet}
-                                        alt={cite.docTitle}
-                                        className="max-h-48 max-w-full object-contain rounded"
-                                      />
-                                    </div>
-                                  ) : isBinarySnippet ? (
-                                    <p className="text-[10px] sm:text-[11px] text-slate-400 italic">
-                                      [Binary file data — content is not displayable as text]
-                                    </p>
-                                  ) : (
-                                    <p className="text-[10px] sm:text-[11px] text-slate-300 font-mono leading-relaxed">
-                                      "{cite.snippet}"
-                                    </p>
-                                  )}
+                                  {snippetContent}
                                 </div>
                               );
                             })()}

@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto';
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 
@@ -16,7 +17,7 @@ const PORT = 3000;
 app.use( express.json( { limit: '50mb' } ) );
 app.use( express.urlencoded( { extended: true, limit: '50mb' } ) );
 
-// Retry generateContent with exponential backoff on 429
+// Retry generateContent with exponential backoff on 429 rate limits only
 async function generateWithRetry(
   client: GoogleGenAI,
   params: Parameters<GoogleGenAI['models']['generateContent']>[0],
@@ -29,11 +30,16 @@ async function generateWithRetry(
     } catch ( err: any ) {
       const is429 = err?.status === 429 || err?.message?.includes( '429' );
       if ( !is429 || attempt === maxRetries ) throw err;
+      // Daily quota exhaustion cannot recover within the retry window — bail immediately
+      const isDailyQuota = err?.message?.includes( 'PerDay' ) || err?.message?.includes( 'per_day' );
+      if ( isDailyQuota ) throw err;
       // honour retryDelay from the API response when available
       const retryMatch = err?.message?.match( /retryDelay":"(\d+)s/ );
-      const waitMs = retryMatch ? Number.parseInt( retryMatch[1] ) * 1000 : delay;
-      console.warn( `Gemini 429 – retrying in ${waitMs / 1000}s (attempt ${attempt + 1}/${maxRetries})` );
-      await new Promise( resolve => setTimeout( resolve, waitMs ) );
+      const apiDelay = retryMatch ? Number.parseInt( retryMatch[1] ) * 1000 : delay;
+      // Cap at 30 s — longer delays indicate daily limits, not per-minute throttling
+      if ( apiDelay > 30_000 ) throw err;
+      console.warn( `Gemini 429 – retrying in ${apiDelay / 1000}s (attempt ${attempt + 1}/${maxRetries})` );
+      await new Promise( resolve => setTimeout( resolve, apiDelay ) );
       delay *= 2;
     }
   }
@@ -58,6 +64,83 @@ if ( process.env.GEMINI_API_KEY ) {
 // In-Memory Document Store & Vector Storage
 let serverDocuments: any[] = [];
 
+// Decode ENC[v1]:base64 tokens so the AI sees plain-text values
+function decodeVaultText( text: string ): string {
+  const decode = ( b64: string, fallback: string ) => { try { return Buffer.from( b64, 'base64' ).toString( 'utf8' ); } catch { return fallback; } };
+
+  // Decrypt AES-256-GCM v2 tokens when key is configured
+  const keyHex = process.env.VAULT_ENCRYPTION_KEY;
+  let result = text;
+  if ( keyHex?.length === 64 ) {
+    const key = Buffer.from( keyHex, 'hex' );
+    result = result.replace( /ENC\[v2\]:([0-9a-f]+)\.([0-9a-f]+)\.([0-9a-f]*)/gi, ( m, ivHex, tagHex, ctHex ) => {
+      try {
+        const decipher = createDecipheriv( 'aes-256-gcm', key, Buffer.from( ivHex, 'hex' ) );
+        decipher.setAuthTag( Buffer.from( tagHex, 'hex' ) );
+        const pt = decipher.update( Buffer.from( ctHex, 'hex' ) );
+        return Buffer.concat( [pt, decipher.final()] ).toString( 'utf8' );
+      } catch { return m; }
+    } );
+  }
+
+  // Decode legacy v1 Base64 tokens (backward compatible)
+  const out = result.replace( /ENC\[v1:[^\]]+\]:([A-Za-z0-9+/=]+)/g, ( m, b ) => decode( b, m ) );
+  return out.replace( /ENC\[v1\]:([A-Za-z0-9+/=]+)/g, ( m, b ) => decode( b, m ) );
+}
+
+// Strip internal vault metadata markers from a retrieved snippet
+function cleanSnippet( raw: string ): string {
+  return raw
+    .replace( /\[SECURE VAULT CREDENTIALS\]\s*/gi, '' )
+    .replace( /\[SECURE VAULT SECRET MESSAGE\]\s*/gi, '' )
+    .replace( /\[Mandatory Search[^\]]*\]:[^\n]*/gi, '' )
+    .replace( /\[User Attached Note[^\]]*\]:[^\n]*/gi, '' )
+    .replace( /Ingested into AI Work Memory\.?/gi, '' )
+    .replace( /\n{3,}/g, '\n\n' )
+    .trim();
+}
+
+// Build a clean Markdown fallback answer from retrieved citations
+function buildFallbackAnswer( query: string, citations: any[] ): string {
+  if ( citations.length === 0 ) {
+    return `I couldn't find documents matching "${query}". Try uploading relevant PDFs, notes, or emails first!`;
+  }
+  const isBinary = ( text: string ) => text.trimStart().startsWith( 'data:' );
+
+  // Group chunks by document so all detail from one doc appears together
+  const byDoc = new Map<string, string[]>();
+  citations.forEach( ( cite: any ) => {
+    const clean = cleanSnippet( cite.snippet || '' );
+    if ( !clean || isBinary( clean ) ) return;
+    if ( !byDoc.has( cite.docTitle ) ) byDoc.set( cite.docTitle, [] );
+    byDoc.get( cite.docTitle )!.push( clean );
+  } );
+
+  if ( byDoc.size === 0 ) {
+    return `I couldn't find documents matching "${query}". Try uploading relevant PDFs, notes, or emails first!`;
+  }
+
+  const srcList = [...byDoc.keys()].join( ', ' );
+  const lines: string[] = [ `**Sources:** ${srcList}`, '' ];
+  let isFirst = true;
+  byDoc.forEach( ( chunks, docTitle ) => {
+    if ( isFirst ) {
+      lines.push( `**From ${docTitle}:**` );
+      chunks.forEach( chunk => {
+        chunk.split( '\n' ).map( ( l: string ) => l.trim().replace( /^[•·▸-]\s*/, '' ) ).filter( Boolean ).forEach( ( l: string ) => lines.push( `- ${l}` ) );
+      } );
+      isFirst = false;
+    } else {
+      lines.push( '', `**Also from ${docTitle}:**` );
+      chunks.forEach( chunk => {
+        const preview = chunk.length > 300 ? chunk.substring( 0, 300 ) + '...' : chunk;
+        lines.push( preview );
+      } );
+    }
+  } );
+  return lines.join( '\n' );
+}
+
 // API Route: Healthcheck
 app.get( '/api/health', ( req, res ) => {
   res.json( {
@@ -66,6 +149,26 @@ app.get( '/api/health', ( req, res ) => {
     totalDocuments: serverDocuments.length,
     timestamp: new Date().toISOString(),
   } );
+} );
+
+// API Route: AES-256-GCM vault encryption (falls back to Base64 if key not configured)
+app.post( '/api/vault/encrypt', ( req, res ) => {
+  const { plaintext } = req.body;
+  if ( !plaintext || typeof plaintext !== 'string' ) {
+    return res.status( 400 ).json( { error: 'plaintext string required' } );
+  }
+  const keyHex = process.env.VAULT_ENCRYPTION_KEY;
+  if ( keyHex?.length !== 64 ) {
+    // No key configured — fall back to Base64 encoding (v1)
+    return res.json( { encrypted: `ENC[v1]:${Buffer.from( plaintext ).toString( 'base64' )}`, strength: 'base64' } );
+  }
+  const key = Buffer.from( keyHex, 'hex' );
+  const iv = randomBytes( 12 );
+  const cipher = createCipheriv( 'aes-256-gcm', key, iv );
+  const ct = Buffer.concat( [cipher.update( plaintext, 'utf8' ), cipher.final()] );
+  const tag = cipher.getAuthTag();
+  const encrypted = `ENC[v2]:${iv.toString( 'hex' )}.${tag.toString( 'hex' )}.${ct.toString( 'hex' )}`;
+  return res.json( { encrypted, strength: 'aes-256-gcm' } );
 } );
 
 // API Route: Ingest & Parse Document with Gemini 2.5/3.6 Flash
@@ -107,7 +210,7 @@ Return valid JSON strictly matching this schema:
       }
 
       const response = await generateWithRetry( ai, {
-        model: 'gemini-3.6-flash',
+        model: 'gemini-2.0-flash',
         contents: { parts: contentParts },
         config: {
           responseMimeType: 'application/json',
@@ -189,9 +292,10 @@ CRITICAL INSTRUCTIONS:
 1. Base your answer directly on the provided Grounding Context below.
 2. If the user asks about specific tasks, dates, amounts, contracts, labs, or receipts, synthesize the details clearly in structured bullet points.
 3. Be professional, friendly, and precise.
+4. CREDENTIALS RULE: If the context contains usernames, passwords, or credential values (already in plain text), display them exactly as they appear. Never refuse to show values that are present in the user's own grounding context.
 ${strictGrounding
-  ? '4. STRICT MODE: Only use information from the provided context. If the information is not present, explicitly say so — do not invent or infer beyond the documents.'
-  : '4. You may supplement with general knowledge if the context is insufficient, but always prioritize the provided documents.'}${roleLine}`;
+  ? '5. STRICT MODE: Only use information from the provided context. If the information is not present, explicitly say so — do not invent or infer beyond the documents.'
+  : '5. You may supplement with general knowledge if the context is insufficient, but always prioritize the provided documents.'}${roleLine}`;
 
       const userPrompt = `GROUNDING CONTEXT FROM RETRIEVED KNOWLEDGE BASE:
 ${contextSnippet || 'No relevant document chunks found.'}
@@ -201,18 +305,31 @@ USER QUESTION:
 
 Please provide a clear, accurate, and structured answer:`;
 
-      const response = await generateWithRetry( ai, {
-        model: 'gemini-3.6-flash',
-        contents: userPrompt,
-        config: {
-          systemInstruction,
-          temperature: 0.2,
-        },
-      } );
+      let geminiOk = false;
+      try {
+        const response = await generateWithRetry( ai, {
+          model: 'gemini-2.0-flash-lite',
+          contents: userPrompt,
+          config: {
+            systemInstruction,
+            temperature: 0.2,
+          },
+        } );
+        aiResponseText = response.text || 'I analyzed your documents but could not format a response.';
+        // Strip any raw binary data URLs Gemini may have echoed from context
+        aiResponseText = aiResponseText.replace( /data:[a-z/+]+;base64,[A-Za-z0-9+/=\s]{20,}/g, '[binary data omitted]' );
+        geminiOk = true;
+      } catch ( geminiErr: any ) {
+        const isQuota = geminiErr?.status === 429 || geminiErr?.message?.includes( '429' );
+        console.warn( isQuota ? 'Gemini quota exhausted – serving retrieval fallback.' : 'Gemini error – serving retrieval fallback.', geminiErr?.message );
+      }
 
-      aiResponseText = response.text || 'I analyzed your documents but could not format a response.';
+      // Serve retrieval-based fallback when Gemini is unavailable
+      if ( !geminiOk ) {
+        aiResponseText = buildFallbackAnswer( query, citations );
+      }
     } else if ( citations.length > 0 ) {
-      aiResponseText = `Based on your ingested files (${citations.map( c => c.docTitle ).join( ', ' )}):\n\n${citations[0].snippet.substring( 0, 300 )}...`;
+      aiResponseText = buildFallbackAnswer( query, citations );
     } else {
       aiResponseText = `I couldn't find specific documents matching "${query}". Try uploading relevant PDFs, notes, or emails first!`;
     }
@@ -235,43 +352,89 @@ Please provide a clear, accurate, and structured answer:`;
 // Helper for performRetrieval
 function performRetrieval( query: string, docs: any[] ) {
   const queryLower = query.toLowerCase();
+  // Words that describe the request intent, not the content being searched for
+  const STOP_WORDS = new Set( ['provide','show','give','find','list','tell','what','how','when','where','which','who','get','more','details','detail','summary','overview','all','every','complete','full','regarding','about','related','from','the','for','with','and','but','not','this','that','these','those','can','please','pdf','doc','txt','csv','json','note','email','image','file','document','vault'] );
   const keywords = queryLower.replace( /[^a-z0-9]/g, ' ' ).split( /\s+/ ).filter( w => w.length > 2 );
+  const contentKeywords = keywords.filter( w => !STOP_WORDS.has( w ) );
 
   const matchedChunks: any[] = [];
 
   docs.forEach( ( doc: any ) => {
-    const raw = doc.rawText || '';
+    const decoded = decodeVaultText( doc.rawText || '' );
+    const isBinaryDataUrl = decoded.trimStart().startsWith( 'data:' );
+    let binaryLabel = 'File';
+    if ( doc.fileType === 'image' ) binaryLabel = 'Image';
+    else if ( doc.fileType === 'pdf' ) binaryLabel = 'PDF';
+    const raw = isBinaryDataUrl
+      ? `[${binaryLabel}: ${doc.title}] ${doc.summary || ''}`.trim()
+      : decoded;
     const paragraphs = raw.split( /\n\s*\n/ ).filter( ( p: string ) => p.trim().length > 0 );
 
     paragraphs.forEach( ( p: string, idx: number ) => {
       const pLower = p.toLowerCase();
       let score = 0;
 
-      keywords.forEach( kw => {
+      contentKeywords.forEach( kw => {
         if ( pLower.includes( kw ) ) score += 1;
         if ( doc.title?.toLowerCase().includes( kw ) ) score += 1.5;
         if ( doc.tags?.some( ( t: string ) => t.toLowerCase().includes( kw ) ) ) score += 2;
       } );
 
-      if ( score > 0 || keywords.length === 0 ) {
+      if ( score > 0 || keywords.length <= 1 ) {
+        // Proportional score: fraction of content keywords matched, no artificial base
+        const kwRatio = contentKeywords.length > 0 ? score / ( contentKeywords.length * 4.5 ) : 0.1;
         matchedChunks.push( {
           docId: doc.id,
           docTitle: doc.title,
           fileType: doc.fileType || 'pdf',
           snippet: p.trim(),
           chunkIndex: idx,
-          matchScore: Math.min( 0.5 + score * 0.15, 0.98 ),
+          matchScore: Math.min( Math.max( kwRatio, 0.05 ), 0.98 ),
         } );
       }
     } );
   } );
 
   matchedChunks.sort( ( a, b ) => b.matchScore - a.matchScore );
-  const topCitations = matchedChunks.slice( 0, 4 );
 
-  const contextSnippet = topCitations
-    .map( ( c, i ) => `[Source ${i + 1}: ${c.docTitle}]\n${c.snippet}` )
-    .join( '\n\n' );
+  // Allow up to 4 chunks per document for detail-rich queries
+  const perDocCount = new Map<string, number>();
+  const topCitations = matchedChunks.filter( c => {
+    const count = perDocCount.get( c.docId ) ?? 0;
+    if ( count >= 4 ) return false;
+    perDocCount.set( c.docId, count + 1 );
+    return true;
+  } ).slice( 0, 8 );
+
+  // If the top document is short and text-based, send its full text to Gemini for complete answers
+  const topDocId = topCitations[0]?.docId;
+  const topDoc = topDocId ? docs.find( ( d: any ) => d.id === topDocId ) : null;
+  const topDocText = topDoc ? decodeVaultText( topDoc.rawText || '' ) : '';
+  const useFullDoc = topDoc && !topDocText.startsWith( 'data:' ) && topDocText.length > 0 && topDocText.length <= 5000;
+
+  let contextSnippet: string;
+  if ( useFullDoc ) {
+    const meta = [
+      topDoc.summary ? `Summary: ${topDoc.summary}` : '',
+      topDoc.tags?.length ? `Tags: ${topDoc.tags.join( ', ' )}` : '',
+    ].filter( Boolean ).join( ' | ' );
+    const metaSuffix = meta ? ' (' + meta + ')' : '';
+    const otherCitations = topCitations.filter( ( c: any ) => c.docId !== topDocId );
+    const otherSnippets = otherCitations.map( ( c: any, i: number ) => `[Source ${i + 2}: ${c.docTitle}]\n${c.snippet}` ).join( '\n\n' );
+    contextSnippet = `[Full Document: ${topDoc.title}]${metaSuffix}\n${topDocText}${otherSnippets ? '\n\n' + otherSnippets : ''}`;
+  } else {
+    contextSnippet = topCitations
+      .map( ( c: any, i: number ) => {
+        const doc = docs.find( ( d: any ) => d.id === c.docId );
+        const meta = [
+          doc?.summary ? `Summary: ${doc.summary}` : '',
+          doc?.tags?.length ? `Tags: ${doc.tags.join( ', ' )}` : '',
+        ].filter( Boolean ).join( ' | ' );
+        const metaSuffix = meta ? ' (' + meta + ')' : '';
+        return `[Source ${i + 1}: ${c.docTitle}]${metaSuffix}\n${c.snippet}`;
+      } )
+      .join( '\n\n' );
+  }
 
   return { citations: topCitations, contextSnippet };
 }

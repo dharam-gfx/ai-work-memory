@@ -198,12 +198,20 @@ export const UploadModule: React.FC<UploadModuleProps> = ( {
   const [secretMessageText, setSecretMessageText] = useState( '' );
   const [secretSearchNote, setSecretSearchNote] = useState( '' );
 
-  const handleSecretSubmit = () => {
+  const handleSecretSubmit = async () => {
     if ( !secretMessageText.trim() || !secretSearchNote.trim() ) return;
 
     const title = secretTitle.trim() || `Secret Message - ${new Date().toLocaleTimeString()}`;
     const filename = `${title.toLowerCase().replace( /\s+/g, '_' )}.enc`;
-    const encryptedPayload = `ENC[v1:AES-256]:${btoa( secretMessageText )}`;
+
+    let encryptedPayload: string;
+    try {
+      const r = await fetch( '/api/vault/encrypt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify( { plaintext: secretMessageText } ) } );
+      const d = await r.json();
+      encryptedPayload = d.encrypted;
+    } catch {
+      encryptedPayload = `ENC[v1]:${btoa( secretMessageText )}`;
+    }
     const fullText = `[SECURE VAULT SECRET MESSAGE]\nEncrypted Secret: ${encryptedPayload}\n\n[Mandatory Search & AI Context Notes]: ${secretSearchNote}`;
 
     const newItem: StagedFileItem = {
@@ -230,13 +238,26 @@ export const UploadModule: React.FC<UploadModuleProps> = ( {
   const [credPassword, setCredPassword] = useState( '' );
   const [credSearchNote, setCredSearchNote] = useState( '' );
 
-  const handleCredentialSubmit = () => {
+  const handleCredentialSubmit = async () => {
     if ( !credUsername.trim() || !credPassword.trim() || !credSearchNote.trim() ) return;
 
     const title = credTitle.trim() || `Credentials - ${new Date().toLocaleTimeString()}`;
     const filename = `${title.toLowerCase().replace( /\s+/g, '_' )}.cred`;
-    const encUser = `ENC[v1]:${btoa( credUsername )}`;
-    const encPass = `ENC[v1]:${btoa( credPassword )}`;
+
+    let encUser: string;
+    let encPass: string;
+    try {
+      const [ru, rp] = await Promise.all( [
+        fetch( '/api/vault/encrypt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify( { plaintext: credUsername } ) } ),
+        fetch( '/api/vault/encrypt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify( { plaintext: credPassword } ) } ),
+      ] );
+      const [du, dp] = await Promise.all( [ru.json(), rp.json()] );
+      encUser = du.encrypted;
+      encPass = dp.encrypted;
+    } catch {
+      encUser = `ENC[v1]:${btoa( credUsername )}`;
+      encPass = `ENC[v1]:${btoa( credPassword )}`;
+    }
     const fullText = `[SECURE VAULT CREDENTIALS]\nUsername: ${encUser}\nPassword: ${encPass}\n\n[Mandatory Search & AI Context Notes]: ${credSearchNote}`;
 
     const newItem: StagedFileItem = {
@@ -379,7 +400,9 @@ export const UploadModule: React.FC<UploadModuleProps> = ( {
           summary = data.summary || summary;
           tags = data.tags || tags;
           category = data.category || category;
-          extractedText = data.extractedText || rawText;
+          // Preserve encrypted rawText for vault files — only use AI extraction for normal documents
+          const isVaultFile = filename.endsWith( '.cred' ) || filename.endsWith( '.enc' );
+          extractedText = isVaultFile ? rawText : ( data.extractedText || rawText );
         }
       }
     } catch ( err ) {

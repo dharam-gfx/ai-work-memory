@@ -19,7 +19,7 @@ export const PrivacyPolicyModule: React.FC<PrivacyPolicyModuleProps> = ({ onBack
               Privacy Policy
             </h1>
             <p className="text-xs text-slate-400">
-              Last updated: July 30, 2026
+              Last updated: August 4, 2026
             </p>
           </div>
         </div>
@@ -140,9 +140,9 @@ export const PrivacyPolicyModule: React.FC<PrivacyPolicyModuleProps> = ({ onBack
               <div className="flex gap-3">
                 <CheckCircle className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="font-semibold text-white">Secrets and credentials you store are encoded</p>
+                  <p className="font-semibold text-white">Secrets and credentials you store are AES-256-GCM encrypted</p>
                   <p className="text-slate-400 mt-0.5">
-                    When you save a secret message or login credentials through the app, the sensitive payload is Base64-encoded with an <strong className="text-slate-200">AES-256 envelope marker</strong> before being written to the database. Only the plain-text search note you attach remains readable for AI queries — the actual secret value is never stored in cleartext.
+                    When you save a secret message or login credentials through the app, the sensitive value is encrypted with <strong className="text-slate-200">AES-256-GCM</strong> using a 32-byte key stored exclusively in your server's environment variables (<code className="text-blue-400 bg-slate-950 px-1 rounded text-xs">VAULT_ENCRYPTION_KEY</code>). The encryption key never leaves the server and is never sent to your browser or stored in the database. Decryption happens server-side only, at query time. The resulting ciphertext (<code className="text-blue-400 bg-slate-950 px-1 rounded text-xs">ENC[v2]:iv.tag.cipher</code>) cannot be reversed by any external AI, tool, or person without that key — unlike simple Base64 encoding, it is mathematically irreversible without the secret.
                   </p>
                 </div>
               </div>

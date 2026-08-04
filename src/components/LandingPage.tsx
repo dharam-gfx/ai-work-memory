@@ -293,7 +293,7 @@ export const LandingPage: React.FC<LandingPageProps> = ( { onLaunchDashboard, on
                 <div className="w-3 h-3 rounded-full bg-emerald-500/70" />
               </div>
               <div className="flex-1 bg-slate-950 rounded-lg px-3 py-1.5 text-[11px] text-slate-400 font-mono">
-                localhost:3000/dashboard/chat
+                aiworkmemory.vercel.app/dashboard/chat
               </div>
             </div>
             <div className="p-4 sm:p-6 space-y-4">
