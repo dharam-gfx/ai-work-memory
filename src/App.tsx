@@ -34,6 +34,79 @@ import { SEED_DOCUMENTS, SEED_CHAT_MESSAGES, SEED_TIMELINE_EVENTS } from './data
 
 type ActiveTab = 'chat' | 'graph' | 'upload' | 'library' | 'timeline' | 'settings';
 
+const SITE_URL = 'https://aiworkmemory.vercel.app';
+
+const upsertMetaTag = ( attribute: 'name' | 'property', key: string, content: string ) => {
+  let tag = document.head.querySelector( `meta[${attribute}="${key}"]` ) as HTMLMetaElement | null;
+  if ( !tag ) {
+    tag = document.createElement( 'meta' );
+    tag.setAttribute( attribute, key );
+    document.head.appendChild( tag );
+  }
+  tag.content = content;
+};
+
+const upsertLinkTag = ( rel: string, href: string ) => {
+  let tag = document.head.querySelector( `link[rel="${rel}"]` ) as HTMLLinkElement | null;
+  if ( !tag ) {
+    tag = document.createElement( 'link' );
+    tag.rel = rel;
+    document.head.appendChild( tag );
+  }
+  tag.href = href;
+};
+
+const getRouteMetadata = ( pathname: string, activeTab: ActiveTab ): { title: string; description: string; canonicalPath: string } => {
+  if ( pathname === '/privacy' ) {
+    return {
+      title: 'Privacy Policy | AI Work Memory',
+      description: 'Read how AI Work Memory stores documents, secures vault data, isolates user records, and handles Gemini-powered AI queries.',
+      canonicalPath: '/privacy',
+    };
+  }
+
+  if ( pathname.startsWith( '/dashboard' ) ) {
+    const dashboardTitles: Record<ActiveTab, string> = {
+      chat: 'Ask AI Chat',
+      graph: 'Knowledge Graph',
+      upload: 'Upload Files',
+      library: 'Document Vault',
+      timeline: 'Activity Timeline',
+      settings: 'Settings',
+    };
+
+    return {
+      title: `${dashboardTitles[activeTab]} | AI Work Memory`,
+      description: 'Private AI workspace for querying documents, exploring linked knowledge, and managing your secure personal memory vault.',
+      canonicalPath: pathname,
+    };
+  }
+
+  return {
+    title: 'AI Work Memory — Personal Knowledge Graph & RAG Assistant',
+    description: 'Upload PDFs, emails, notes, and spreadsheets. Ask questions in plain English and get instant AI-grounded answers with exact source citations. Your private AI memory vault powered by Google Gemini.',
+    canonicalPath: '/',
+  };
+};
+
+const RouteMetadataSync: React.FC<{ pathname: string; activeTab: ActiveTab }> = ( { pathname, activeTab } ) => {
+  useEffect( () => {
+    const metadata = getRouteMetadata( pathname, activeTab );
+    const canonicalUrl = new URL( metadata.canonicalPath, SITE_URL ).toString();
+
+    document.title = metadata.title;
+    upsertMetaTag( 'name', 'description', metadata.description );
+    upsertMetaTag( 'property', 'og:title', metadata.title );
+    upsertMetaTag( 'property', 'og:description', metadata.description );
+    upsertMetaTag( 'property', 'og:url', canonicalUrl );
+    upsertMetaTag( 'name', 'twitter:title', metadata.title );
+    upsertMetaTag( 'name', 'twitter:description', metadata.description );
+    upsertLinkTag( 'canonical', canonicalUrl );
+  }, [pathname, activeTab] );
+
+  return null;
+};
+
 const AppContent: React.FC = () => {
   const { user, loading, openAuthModal, setOpenAuthModal, isSupabaseActive } = useAuth();
 
@@ -46,6 +119,7 @@ const AppContent: React.FC = () => {
   const activeTab = ( dashboardMatch?.params?.tab as ActiveTab ) || 'chat';
   const [searchQuery, setSearchQuery] = useState<string>( '' );
   const [showMobileSearch, setShowMobileSearch] = useState<boolean>( false );
+  const metadataSync = <RouteMetadataSync pathname={location.pathname} activeTab={activeTab} />;
 
   // Strip any bare or token-filled hash Supabase leaves after OAuth (e.g. /dashboard/chat#)
   useEffect( () => {
@@ -220,16 +294,17 @@ const AppContent: React.FC = () => {
 
   // Show full-screen loader while auth state is being restored (prevents landing page flash)
   if ( loading ) {
-    return <LoadingScreen />;
+    return <>{metadataSync}<LoadingScreen /></>;
   }
 
   if ( isPrivacy ) {
-    return <PrivacyPolicyModule onBack={() => navigate( '/' )} />;
+    return <>{metadataSync}<PrivacyPolicyModule onBack={() => navigate( '/' )} /></>;
   }
 
   if ( !isDashboard || !user ) {
     return (
       <>
+        {metadataSync}
         <LandingPage
           user={user}
           onOpenAuth={() => setOpenAuthModal( true )}
@@ -255,7 +330,9 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
+    <>
+      {metadataSync}
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-blue-600 selection:text-white">
 
       {/* Top Navigation & Workspace Header */}
       <header className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/80 px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2 sm:gap-4">
@@ -516,7 +593,8 @@ const AppContent: React.FC = () => {
       {/* Auth Modal Modal */}
       <AuthModal isOpen={openAuthModal} onClose={() => setOpenAuthModal( false )} />
 
-    </div>
+      </div>
+    </>
   );
 };
 

@@ -5,6 +5,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="application-name" content="AI Work Memory" />
+  <meta name="apple-mobile-web-app-title" content="AI Work Memory" />
 
   <!-- Primary SEO -->
   <title>AI Work Memory — Personal Knowledge Graph & RAG Assistant</title>
@@ -24,7 +26,9 @@
   <meta property="og:title" content="AI Work Memory — Personal Knowledge Graph & RAG Assistant" />
   <meta property="og:description"
     content="Stop searching. Start asking your files. Upload PDFs, emails, notes — get instant AI answers with citations. Powered by Google Gemini RAG." />
-  <meta property="og:image" content="https://aiworkmemory.vercel.app/og-image.png" />
+  <meta property="og:image" content="https://aiworkmemory.vercel.app/og-image.svg" />
+  <meta property="og:image:type" content="image/svg+xml" />
+  <meta property="og:image:alt" content="AI Work Memory preview card" />
   <meta property="og:site_name" content="AI Work Memory" />
   <meta property="og:locale" content="en_US" />
 
@@ -34,15 +38,15 @@
   <meta name="twitter:title" content="AI Work Memory — Personal Knowledge Graph & RAG Assistant" />
   <meta name="twitter:description"
     content="Stop searching. Start asking your files. Upload PDFs, emails, notes — get instant AI answers with citations. Powered by Google Gemini RAG." />
-  <meta name="twitter:image" content="https://aiworkmemory.vercel.app/og-image.png" />
+  <meta name="twitter:image" content="https://aiworkmemory.vercel.app/og-image.svg" />
+  <meta name="twitter:image:alt" content="AI Work Memory preview card" />
 
   <!-- Robots & Indexing -->
-  <meta name="robots" content="index, follow" />
+  <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
   <meta name="theme-color" content="#020617" />
 
-  <!-- Preconnect to speed up Google Analytics & Fonts (improves Core Web Vitals score) -->
+  <!-- Preconnect to speed up Google Analytics -->
   <link rel="preconnect" href="https://www.googletagmanager.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="dns-prefetch" href="https://www.google-analytics.com" />
 
   <!-- JSON-LD Structured Data — Google uses this for rich search results -->
@@ -73,7 +77,7 @@
       "Cross-device sync via Supabase",
       "Google Gemini AI integration"
     ],
-    "screenshot": "https://aiworkmemory.vercel.app/og-image.png"
+    "screenshot": "https://aiworkmemory.vercel.app/og-image.svg"
   }
   </script>
 
@@ -89,6 +93,14 @@
 
 <body class="bg-slate-950 text-slate-100 min-h-screen">
   <div id="root"></div>
+  <noscript>
+    <section style="max-width: 72rem; margin: 0 auto; padding: 2rem 1rem; font-family: system-ui, sans-serif; line-height: 1.6; color: #e2e8f0;">
+      <h1 style="font-size: 2rem; margin-bottom: 1rem;">AI Work Memory</h1>
+      <p style="margin-bottom: 1rem;">AI Work Memory is a private knowledge graph and RAG assistant for searching PDFs, emails, notes, spreadsheets, and secure vault content with grounded AI answers.</p>
+      <p style="margin-bottom: 1rem;">Visit the <a href="/privacy" style="color: #60a5fa;">Privacy Policy</a> to review how data is stored and protected.</p>
+      <p>Enable JavaScript to use the full application dashboard and AI workspace.</p>
+    </section>
+  </noscript>
   <script type="module" src="/src/main.tsx"></script>
 </body>
 

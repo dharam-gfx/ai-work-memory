@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="80" y1="40" x2="1110" y2="610" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0F172A"/>
+      <stop offset="0.5" stop-color="#172554"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="240" y1="164" x2="919" y2="520" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#60A5FA"/>
+      <stop offset="0.5" stop-color="#818CF8"/>
+      <stop offset="1" stop-color="#22D3EE"/>
+    </linearGradient>
+    <filter id="blur" x="0" y="0" width="1200" height="630" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="60"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="1200" height="630" rx="36" fill="url(#bg)"/>
+  
+  <!-- Glow effects -->
+  <g opacity="0.45" filter="url(#blur)">
+    <circle cx="225" cy="156" r="140" fill="#2563EB"/>
+    <circle cx="944" cy="148" r="130" fill="#7C3AED"/>
+    <circle cx="905" cy="498" r="150" fill="#06B6D4"/>
+  </g>
+
+  <!-- Main Container Card -->
+  <rect x="64" y="64" width="1072" height="502" rx="28" fill="rgba(15,23,42,0.52)" stroke="rgba(148,163,184,0.14)"/>
+
+  <!-- Logo Icon -->
+  <rect x="100" y="104" width="110" height="110" rx="28" fill="url(#accent)"/>
+  <path d="M132 170.5C132 145.371 152.371 125 177.5 125C202.629 125 223 145.371 223 170.5V172.5H206.344V170.5C206.344 154.569 193.431 141.656 177.5 141.656C161.569 141.656 148.656 154.569 148.656 170.5V172.5H132V170.5Z" fill="white"/>
+  <path d="M154.453 185.273C154.453 172.227 165.027 161.652 178.074 161.652C191.121 161.652 201.695 172.227 201.695 185.273V186.312H185.586V185.273C185.586 181.123 182.224 177.762 178.074 177.762C173.924 177.762 170.563 181.123 170.563 185.273V186.312H154.453V185.273Z" fill="white" fill-opacity="0.92"/>
+
+  <!-- Header Text -->
+  <text x="238" y="152" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="52" font-weight="700">AI Work Memory</text>
+  <text x="238" y="196" fill="#93C5FD" font-family="Segoe UI, Arial, sans-serif" font-size="24" font-weight="600">Private knowledge graph and RAG assistant</text>
+
+  <!-- Hero Headlines -->
+  <text x="100" y="292" fill="white" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="700">Stop searching.</text>
+  <text x="100" y="348" fill="url(#accent)" font-family="Segoe UI, Arial, sans-serif" font-size="48" font-weight="700">Start asking your files.</text>
+
+  <!-- Body Text (Adjusted sizes and positions to avoid overflow) -->
+  <text x="100" y="410" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="400">Query PDFs, emails, notes, spreadsheets, and secure vault content</text>
+  <text x="100" y="440" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="400">with grounded Gemini answers and exact source citations.</text>
+
+  <!-- URL Badge -->
+  <rect x="100" y="482" width="340" height="46" rx="23" fill="rgba(37,99,235,0.18)" stroke="rgba(96,165,250,0.32)"/>
+  <text x="124" y="512" fill="#E0F2FE" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="600">aiworkmemory.vercel.app</text>
+
+  <!-- Right Side Card Preview -->
+  <rect x="750" y="270" width="330" height="190" rx="20" fill="rgba(15,23,42,0.72)" stroke="rgba(96,165,250,0.24)"/>
+  <text x="780" y="316" fill="#E2E8F0" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">Answer Preview</text>
+  <text x="780" y="352" fill="#93C5FD" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="600">Source grounded</text>
+  <text x="780" y="388" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400">Acme MSA, clause 14.2:</text>
+  <text x="780" y="416" fill="#CBD5E1" font-family="Segoe UI, Arial, sans-serif" font-size="16" font-weight="400">30-day written termination notice.</text>
+</svg>
