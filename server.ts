@@ -308,7 +308,7 @@ Please provide a clear, accurate, and structured answer:`;
       let geminiOk = false;
       try {
         const response = await generateWithRetry( ai, {
-          model: 'gemini-2.0-flash-lite',
+          model: 'gemini-3.5-flash-lite',
           contents: userPrompt,
           config: {
             systemInstruction,
