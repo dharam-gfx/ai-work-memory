@@ -1,4 +1,8 @@
-# AI Work Memory — Personal Knowledge & RAG Assistant
+# aiworkmemory
+
+**[aiworkmemory](https://aiworkmemory.vercel.app)** — AI Work Memory is a personal knowledge graph and RAG assistant. Upload PDFs, emails, notes, and spreadsheets, then ask questions in plain English and get instant AI-grounded answers with exact source citations.
+
+🔗 Live app: https://aiworkmemory.vercel.app
 
 A full-stack RAG (Retrieval-Augmented Generation) platform for managing your personal knowledge vault. Upload documents, query them with Google Gemini AI, and sync across devices — with strict per-user data isolation.
 
