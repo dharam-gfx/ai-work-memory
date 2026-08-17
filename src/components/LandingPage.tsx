@@ -207,6 +207,7 @@ export const LandingPage: React.FC<LandingPageProps> = ( { onLaunchDashboard, on
           <div className="max-w-4xl mx-auto my-2 py-4">
             <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
               className="text-3xl sm:text-6xl md:text-7xl font-extrabold tracking-tight leading-tight sm:leading-tight text-white drop-shadow-md">
+              <span className="sr-only">AI Work Memory (aiworkmemory): </span>
               Stop searching. <br />
               <span className="bg-linear-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent animate-pulse">
                 Start asking your files.
@@ -732,7 +733,7 @@ export const LandingPage: React.FC<LandingPageProps> = ( { onLaunchDashboard, on
             <span className="font-bold text-slate-300">AI Work Memory</span>
           </div>
           <div className="flex items-center gap-4">
-            <p>© 2026 AI Work Memory.</p>
+            <p>© 2026 AI Work Memory (aiworkmemory.vercel.app).</p>
             <a href="https://github.com/dharam-gfx/" target="_blank" rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800">
               <Github className="w-4 h-4 text-slate-300" />
